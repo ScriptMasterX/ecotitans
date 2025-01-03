@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function TabsLayout() {
+  console.log("hiii")
   return (
     <Tabs
       screenOptions={{
@@ -10,40 +11,45 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="dashboard"
+        name="rewards/index"
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" color={color} size={28} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="scan"
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="qr-code-outline" color={color} size={28} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="rewards"
-        options={{
+          title: "Rewards",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="gift-outline" color={color} size={28} />
           ),
         }}
       />
       <Tabs.Screen
-        name="leaderboard"
+        name="scan/index"
         options={{
+          title: "Scan",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="camera-outline" color={color} size={28} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="dashboard/index"
+        options={{
+          title: "Dashboard",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" color={color} size={28} />
+          )
+        }}
+      />
+      <Tabs.Screen
+        name="leaderboard/index"
+        options={{
+          title: "Leaderboard",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="trophy-outline" color={color} size={28} />
           ),
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="profile/index"
         options={{
+          title: "Profile",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" color={color} size={28} />
           ),
