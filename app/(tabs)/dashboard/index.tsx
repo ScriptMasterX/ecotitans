@@ -4,7 +4,7 @@ export default function Dashboard() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Welcome to the Dashboard!</Text>
-      <Text style={styles.subtitle}>Total Points: 120</Text>
+      <Text style={styles.subtitle}>Total Points: 400</Text>
       <Text style={styles.activity}>Recent Activity:</Text>
       <Text>- Scanned QR Code at 2:30 PM</Text>
       <Text>- Redeemed: Free Coffee</Text>
