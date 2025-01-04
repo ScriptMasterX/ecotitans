@@ -1,21 +1,15 @@
-import { Ionicons } from '@expo/vector-icons';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet, Button } from "react-native";
 
-type TabBarIconProps = {
-  color: string;
-  size: number;
-};
-
-export default function ScanScreen() {
+export default function Scan() {
   return (
-    <View>
-      <Text>Scan</Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>Scan QR Code</Text>
+      <Button title="Open Camera" onPress={() => alert("Camera feature coming soon!")} />
     </View>
   );
 }
 
-ScanScreen.options = {
-  tabBarIcon: ({ color, size }: TabBarIconProps) => (
-    <Ionicons name="camera-outline" color={color} size={size} />
-  ),
-};
+const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" },
+  title: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
+});
