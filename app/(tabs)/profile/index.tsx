@@ -1,12 +1,26 @@
+import React from "react";
 import { View, Text, StyleSheet, Button, Alert } from "react-native";
+import { auth } from "../../firebaseConfig";
+import { useRouter } from "expo-router";
 
 export default function Profile() {
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await auth.signOut(); // Firebase sign-out
+      router.replace("/auth/authScreen"); // Redirect to the login screen
+    } catch (error: any) {
+      console.error("Logout error:", error.message);
+      Alert.alert("Logout Error", error.message);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Profile</Text>
       <Text style={styles.info}>Name: John Doe</Text>
       <Text style={styles.info}>Email: john.doe@example.com</Text>
-      {/* Wrap Button in a View for styling */}
       <View style={styles.buttonContainer}>
         <Button
           title="Edit Profile"
@@ -14,10 +28,7 @@ export default function Profile() {
         />
       </View>
       <View style={styles.buttonContainer}>
-        <Button
-          title="Logout"
-          onPress={() => Alert.alert("Logged Out!")}
-        />
+        <Button title="Logout" onPress={handleLogout} />
       </View>
     </View>
   );
