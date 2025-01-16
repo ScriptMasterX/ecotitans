@@ -1,6 +1,7 @@
 import 'react-native-get-random-values'; // Ensures compatibility with Firebase
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore"; // Import Firestore
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -15,6 +16,7 @@ const firebaseConfig = {
 // Initialize Firebase app (ensure it's not already initialized to avoid errors)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Export Firebase services
-export const auth = getAuth(app);
+// Initialize Firebase services
+export const auth = getAuth(app); // Authentication
+export const db = getFirestore(app); // Firestore
 export default app;

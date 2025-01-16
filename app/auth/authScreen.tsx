@@ -113,6 +113,7 @@ export default function AuthScreen() {
           <TextInput
             style={styles.input}
             placeholder="Enter your email"
+            placeholderTextColor={"grey"}
             value={email}
             onChangeText={(text) => setEmail(text)}
             keyboardType="email-address"
@@ -132,6 +133,7 @@ export default function AuthScreen() {
           <TextInput
             style={styles.input}
             placeholder="Email"
+            placeholderTextColor={"grey"}
             value={email}
             onChangeText={(text) => setEmail(text)}
             keyboardType="email-address"

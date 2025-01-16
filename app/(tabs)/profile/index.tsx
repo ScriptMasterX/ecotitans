@@ -1,15 +1,73 @@
-import React from "react";
-import { View, Text, StyleSheet, Button, Alert } from "react-native";
-import { auth } from "../../firebaseConfig";
+import React, { useState, useEffect } from "react";
+import { View, Text, TextInput, Button, StyleSheet, Alert } from "react-native";
+import { auth, db } from "../../firebaseConfig";
+import { User } from "firebase/auth"; // Import the User type from Firebase
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "expo-router";
 
 export default function Profile() {
   const router = useRouter();
+  const [user, setUser] = useState<User | null>(null); // Allow both User and null
+  const [name, setName] = useState<string>(""); // User's name
+  const [email, setEmail] = useState<string>(""); // User's email
+  const [isEditing, setIsEditing] = useState<boolean>(false); // Toggle edit mode
+
+  // Listen for authentication state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser); // Set the authenticated user
+        setEmail(currentUser.email || "");
+        fetchProfile(currentUser.uid); // Fetch user profile
+      } else {
+        setUser(null);
+        router.replace("/auth/authScreen"); // Redirect to login if not authenticated
+      }
+    });
+
+    return unsubscribe; // Cleanup the listener on unmount
+  }, []);
+
+  // Fetch user profile data from Firestore
+  const fetchProfile = async (uid: string) => {
+    try {
+      const userDocRef = doc(db, "users", uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        setName(data.name || ""); // Set user's name
+      } else {
+        // Create a new document if it doesn't exist
+        await setDoc(userDocRef, { name: "", email });
+        setName(""); // Initialize name
+      }
+    } catch (error) {
+      console.error("Error fetching profile data:", error);
+      Alert.alert("Error", "Could not load profile data.");
+    }
+  };
+
+  // Save user profile data to Firestore
+  const saveProfile = async () => {
+    try {
+      if (user) {
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, { name }); // Update name only
+        Alert.alert("Success", "Your profile has been updated.");
+        setIsEditing(false); // Exit edit mode
+      }
+    } catch (error) {
+      console.error("Error saving profile data:", error);
+      Alert.alert("Error", "Could not save profile data.");
+    }
+  };
 
   const handleLogout = async () => {
     try {
-      await auth.signOut(); // Firebase sign-out
-      router.replace("/auth/authScreen"); // Redirect to the login screen
+      await auth.signOut();
+      router.replace("/auth/authScreen");
     } catch (error: any) {
       console.error("Logout error:", error.message);
       Alert.alert("Logout Error", error.message);
@@ -19,13 +77,25 @@ export default function Profile() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Profile</Text>
-      <Text style={styles.info}>Name: John Doe</Text>
-      <Text style={styles.info}>Email: john.doe@example.com</Text>
+      <TextInput
+        style={[styles.input, isEditing && styles.editable]}
+        value={name}
+        onChangeText={setName}
+        placeholder="Name"
+        editable={isEditing} // Name is editable only in edit mode
+      />
+      <TextInput
+        style={[styles.input, styles.disabledInput]}
+        value={email}
+        placeholder="Email"
+        editable={false} // Email is always read-only
+      />
       <View style={styles.buttonContainer}>
-        <Button
-          title="Edit Profile"
-          onPress={() => Alert.alert("Edit Profile Coming Soon!")}
-        />
+        {isEditing ? (
+          <Button title="Save Profile" onPress={saveProfile} />
+        ) : (
+          <Button title="Edit Profile" onPress={() => setIsEditing(true)} />
+        )}
       </View>
       <View style={styles.buttonContainer}>
         <Button title="Logout" onPress={handleLogout} />
@@ -36,7 +106,17 @@ export default function Profile() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#fff" },
-  title: { fontSize: 24, fontWeight: "bold", marginBottom: 10 },
-  info: { fontSize: 18, marginBottom: 20 },
-  buttonContainer: { marginBottom: 10 }, // Style for button wrappers
+  title: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    padding: 10,
+    marginBottom: 15,
+    borderRadius: 5,
+    backgroundColor: "#f5f5f5",
+    color: "black",
+  },
+  editable: { backgroundColor: "#fff", borderColor: "#007BFF" },
+  disabledInput: { backgroundColor: "#e9ecef" },
+  buttonContainer: { marginBottom: 10 },
 });
