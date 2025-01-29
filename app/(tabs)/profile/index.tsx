@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, Button, StyleSheet, Alert } from "react-native";
 import { auth, db } from "../../firebaseConfig";
-import { User } from "firebase/auth"; // Import the User type from Firebase
+import { User } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "expo-router";
@@ -11,6 +11,7 @@ export default function Profile() {
   const [user, setUser] = useState<User | null>(null); // Allow both User and null
   const [name, setName] = useState<string>(""); // User's name
   const [email, setEmail] = useState<string>(""); // User's email
+  const [bio, setBio] = useState<string>(""); // User's bio
   const [isEditing, setIsEditing] = useState<boolean>(false); // Toggle edit mode
 
   // Listen for authentication state changes
@@ -30,7 +31,7 @@ export default function Profile() {
   }, []);
 
   // Fetch user profile data from Firestore
-  const fetchProfile = async (uid: string) => {
+  const fetchProfile = async (uid) => {
     try {
       const userDocRef = doc(db, "users", uid);
       const userDoc = await getDoc(userDocRef);
@@ -38,10 +39,12 @@ export default function Profile() {
       if (userDoc.exists()) {
         const data = userDoc.data();
         setName(data.name || ""); // Set user's name
+        setBio(data.bio || ""); // Set user's bio
       } else {
         // Create a new document if it doesn't exist
-        await setDoc(userDocRef, { name: "", email });
-        setName(""); // Initialize name
+        await setDoc(userDocRef, { name: "", email, bio: "" });
+        setName("");
+        setBio("");
       }
     } catch (error) {
       console.error("Error fetching profile data:", error);
@@ -54,7 +57,7 @@ export default function Profile() {
     try {
       if (user) {
         const userDocRef = doc(db, "users", user.uid);
-        await updateDoc(userDocRef, { name }); // Update name only
+        await updateDoc(userDocRef, { name, bio }); // Update name and bio
         Alert.alert("Success", "Your profile has been updated.");
         setIsEditing(false); // Exit edit mode
       }
@@ -65,18 +68,39 @@ export default function Profile() {
   };
 
   const handleLogout = async () => {
-    try {
-      await auth.signOut();
-      router.replace("/auth/authScreen");
-    } catch (error: any) {
-      console.error("Logout error:", error.message);
-      Alert.alert("Logout Error", error.message);
-    }
+    Alert.alert(
+      "Confirm Logout",
+      "Are you sure you want to log out?",
+      [
+        {
+          text: "Cancel",
+          onPress: () => console.log("Logout cancelled"),
+          style: "cancel",
+        },
+        {
+          text: "Logout",
+          onPress: async () => {
+            try {
+              await auth.signOut(); // Firebase sign-out
+              router.replace("/auth/authScreen"); // Redirect to login screen
+            } catch (error) {
+              console.error("Logout error:", error.message);
+              Alert.alert("Logout Error", error.message);
+            }
+          },
+          style: "destructive", // Emphasizes the destructive action
+        },
+      ],
+      { cancelable: true } // Dismiss dialog if tapped outside
+    );
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Profile</Text>
+
+      {/* Name Label and Input */}
+      <Text style={styles.label}>Name</Text>
       <TextInput
         style={[styles.input, isEditing && styles.editable]}
         value={name}
@@ -84,12 +108,28 @@ export default function Profile() {
         placeholder="Name"
         editable={isEditing} // Name is editable only in edit mode
       />
+
+      {/* Email Label and Input */}
+      <Text style={styles.label}>Email</Text>
       <TextInput
         style={[styles.input, styles.disabledInput]}
         value={email}
         placeholder="Email"
         editable={false} // Email is always read-only
       />
+
+      {/* Bio Label and Input */}
+      <Text style={styles.label}>Bio</Text>
+      <TextInput
+        style={[styles.input, isEditing && styles.editable]}
+        value={bio}
+        onChangeText={setBio}
+        placeholder="Bio"
+        editable={isEditing} // Bio is editable only in edit mode
+        multiline // Allow multi-line input for bio
+      />
+
+      {/* Buttons */}
       <View style={styles.buttonContainer}>
         {isEditing ? (
           <Button title="Save Profile" onPress={saveProfile} />
@@ -101,12 +141,14 @@ export default function Profile() {
         <Button title="Logout" onPress={handleLogout} />
       </View>
     </View>
+
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#fff" },
   title: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
+  label: { fontSize: 16, fontWeight: "600", marginBottom: 5 },
   input: {
     borderWidth: 1,
     borderColor: "#ccc",
