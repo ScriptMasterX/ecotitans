@@ -1,41 +1,47 @@
 import React, { useEffect, useState } from "react";
 import { Stack } from "expo-router";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./firebaseConfig"; // Ensure your Firebase is initialized properly
 import { useRouter } from "expo-router";
-import * as SecureStore from "expo-secure-store";
 
 export default function RootLayout() {
   const router = useRouter();
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // Show a loading spinner
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // Track logged-in status
 
   useEffect(() => {
-    const checkAuthStatus = async () => {
-      try {
-        const token = await SecureStore.getItemAsync("authToken");
-        if (token) {
-          // Token exists, user is logged in
-          setIsLoggedIn(true);
-        } else {
-          // No token, user is not logged in
-          setIsLoggedIn(false);
-        }
-      } catch (error) {
-        console.error("Error checking auth status:", error);
-        setIsLoggedIn(false);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        console.log("User is logged in:", user.email); // Debug log
+        setIsLoggedIn(true); // User is logged in
+      } else {
+        console.log("No user logged in"); // Debug log
+        setIsLoggedIn(false); // User is not logged in
       }
-    };
+      setIsLoading(false); // Stop the loading spinner
+    });
 
-    checkAuthStatus();
+    return unsubscribe; // Cleanup listener on unmount
   }, []);
 
   useEffect(() => {
-    if (isLoggedIn === false) {
-      router.replace("/auth/authScreen"); // Redirect to sign-in if not logged in
+    if (!isLoading) {
+      if (isLoggedIn) {
+        router.replace("/(tabs)/dashboard"); // Redirect to the main app if logged in
+      } else {
+        router.replace("/auth/authScreen"); // Redirect to login if not logged in
+      }
     }
-  }, [isLoggedIn]);
+  }, [isLoading, isLoggedIn]);
 
-  if (isLoggedIn === null) {
-    // Show a loading screen while checking auth status
-    return <></>;
+  if (isLoading) {
+    // Show a loading spinner while checking auth status
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007BFF" />
+      </View>
+    );
   }
 
   return (
@@ -46,3 +52,12 @@ export default function RootLayout() {
     />
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+});
