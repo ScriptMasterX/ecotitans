@@ -142,6 +142,7 @@ export default function AuthScreen() {
           <TextInput
             style={styles.input}
             placeholder="Password"
+            placeholderTextColor={"grey"}
             value={password}
             onChangeText={(text) => setPassword(text)}
             secureTextEntry
