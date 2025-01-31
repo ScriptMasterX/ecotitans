@@ -5,8 +5,9 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db } from "../../firebaseConfig";
 import { doc, setDoc, updateDoc, getDoc } from "firebase/firestore";
 import * as ImageManipulator from "expo-image-manipulator"; // For compressing images before upload
+import { EXPO_PUBLIC_GOOGLE_VISION_KEY } from "@env";
 
-const GOOGLE_VISION_KEY = "AIzaSyCOSDBcgbMezGHjsm5liRy30TVVtDg4rtk"; // Hardcoded key
+// const GOOGLE_VISION_KEY = "AIzaSyCOSDBcgbMezGHjsm5liRy30TVVtDg4rtk"; // Hardcoded key
 
 export default function Scan() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -72,7 +73,7 @@ export default function Scan() {
       const base64Image = await convertImageToBase64(photoUri);
 
       const response = await fetch(
-        `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_KEY}`,
+        `https://vision.googleapis.com/v1/images:annotate?key=${EXPO_PUBLIC_GOOGLE_VISION_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -107,8 +108,9 @@ export default function Scan() {
         "wastebasket",
         "plastic bag",
         "debris",
+        "tissue box"
       ];
-      
+
       return labels.some((label) => trashKeywords.includes(label.description.toLowerCase()));
     } catch (error) {
       console.error("Error verifying image:", error);
