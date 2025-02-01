@@ -1,13 +1,31 @@
 import { View, Text, StyleSheet } from "react-native";
+import { useState, useEffect } from "react";
+import { auth, db } from "../../firebaseConfig";
+import { doc, onSnapshot } from "firebase/firestore";
 
 export default function Dashboard() {
+  const [points, setPoints] = useState(0);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    // Listen for real-time updates from Firestore
+    const unsubscribe = onSnapshot(doc(db, "users", user.uid), (doc) => {
+      if (doc.exists()) {
+        setPoints(doc.data().points || 0);
+      }
+    });
+
+    return () => unsubscribe(); // Cleanup listener on unmount
+  }, []);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Welcome to the Dashboard!</Text>
-      <Text style={styles.subtitle}>Total Points: 400</Text>
+      <Text style={styles.subtitle}>Total Points: {points}</Text>
       <Text style={styles.activity}>Recent Activity:</Text>
-      <Text>- Scanned QR Code at 2:30 PM</Text>
-      <Text>- Redeemed: Free Coffee</Text>
+      <Text>- Scanned QR Code and earned points</Text>
     </View>
   );
 }
