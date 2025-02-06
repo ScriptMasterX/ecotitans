@@ -6,7 +6,7 @@ import { doc, setDoc, updateDoc, getDoc } from "firebase/firestore";
 import * as Location from "expo-location";
 import * as ImageManipulator from "expo-image-manipulator";
 import { useFocusEffect } from "expo-router";
-import { EXPO_PUBLIC_GOOGLE_VISION_KEY } from "@env";
+// import { EXPO_PUBLIC_GOOGLE_VISION_KEY } from "@env";
 
 export default function Scan() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -17,7 +17,7 @@ export default function Scan() {
   const [scannerEnabled, setScannerEnabled] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState(""); // Stores QR scan result
-
+  EXPO_PUBLIC_GOOGLE_VISION_KEY = "AIzaSyCOSDBcgbMezGHjsm5liRy30TVVtDg4rtk"
   const cameraRef = useRef(null);
 
   const SCHOOL_LOCATION = {
@@ -68,17 +68,16 @@ export default function Scan() {
   const handleQRCodeScanned = ({ data }) => {
     if (scanned || modalVisible) return; // Prevent multiple scans
   
-    console.log("Scanned QR Code:", data);
     setScanned(true); // Disable further scanning
-    if (isSchoolDayAndTime() && data == "IRjRUQ9O9Hh8kq6IaKapsahcHSNjiqjhewbfhsdiauwbWHUVEDJHWediwbefvhwBHJebfhwefihdwBEIHBVIYWEg") {
-      setStage("trash");
-      setModalMessage("QR Code Valid ✅\nProceeding to trash scanning.");
-    } else {
-      setModalMessage("❌ Invalid QR Code\nThis QR code is only active during 11AM - 1PM.");
-    }
   
-    setModalVisible(true); // Open the modal
+    setTimeout(() => {
+      setStage("start");
+    }, 10); // Small delay before switching
+    setTimeout(() => {
+      setStage("trash");
+    }, 15); // Small delay before switching
   };
+  
 
 
   // Capture and analyze trash image
