@@ -6,7 +6,7 @@ import { doc, setDoc, updateDoc, getDoc } from "firebase/firestore";
 import * as Location from "expo-location";
 import * as ImageManipulator from "expo-image-manipulator";
 import { useFocusEffect } from "expo-router";
-// import { EXPO_PUBLIC_GOOGLE_VISION_KEY } from "@env";
+import Constants from "expo-constants";
 
 export default function Scan() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -17,7 +17,7 @@ export default function Scan() {
   const [scannerEnabled, setScannerEnabled] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState(""); // Stores QR scan result
-  EXPO_PUBLIC_GOOGLE_VISION_KEY = "AIzaSyCOSDBcgbMezGHjsm5liRy30TVVtDg4rtk"
+  GOOGLE_VISION_KEY = Constants.expoConfig.extra.EXPO_PUBLIC_GOOGLE_VISION_KEY
   const cameraRef = useRef(null);
 
   const SCHOOL_LOCATION = {
@@ -35,13 +35,14 @@ export default function Scan() {
     }, [])
   );
   // Request camera permissions
+  // ✅ Request permissions before allowing the scan to start
   const handleStartScan = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission Denied", "Location access is required.");
       return;
     }
-  
+
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
@@ -49,11 +50,20 @@ export default function Scan() {
         return;
       }
     }
-  
+
     setStage("qr"); // Proceed to QR scanning
-    setScanned(false)
-    setAlertShown(false)
+    setScanned(false);
+    setAlertShown(false);
   };
+
+  if (!permission?.granted) {
+    return (
+      <View style={styles.container}>
+        <Text>Please enable camera permissions in your settings.</Text>
+        <Button title="Grant Permission" onPress={requestPermission} />
+      </View>
+    );
+  }
   
   // Check if it's a valid school day & time
   const isSchoolDayAndTime = () => {
@@ -72,10 +82,10 @@ export default function Scan() {
   
     setTimeout(() => {
       setStage("start");
-    }, 10); // Small delay before switching
+    }, 110); // Small delay before switching
     setTimeout(() => {
       setStage("trash");
-    }, 15); // Small delay before switching
+    }, 150); // Small delay before switching
   };
   
 
@@ -83,35 +93,34 @@ export default function Scan() {
   // Capture and analyze trash image
   const handleCapturePhoto = async () => {
     if (cameraRef.current) {
+      setIsProcessing(true); // Disable button while processing
       const photoData = await cameraRef.current.takePictureAsync();
-      setIsProcessing(true);
-  
+
       const isAtSchool = await checkIfAtSchool();
       if (!isAtSchool) {
-        Alert.alert("Location Restriction", "You must be at school to take a photo.");
-        setStage("start");
-        setIsProcessing(false);
-        return;
+          Alert.alert("Location Restriction", "You must be at school to take a photo.");
+          setStage("start");
+          return;
       }
-  
+
       const isValidTrash = await verifyTrashImage(photoData.uri);
-      setIsProcessing(false);
-  
+      setIsProcessing(false); // Re-enable button after processing
+
       if (isValidTrash) {
-        await saveScanData(auth.currentUser?.uid); // Store result, NOT image
-        Alert.alert("Success", "Trash detected! You earned points.");
-        setStage("start");
-        // Reset state and return to QR scanning
-        setStage("qr");
-        setScanned(false);
-        setCameraActive(true);
+          await saveScanData(auth.currentUser?.uid); // Store result, NOT image
+          Alert.alert("Success", "Trash detected! You earned points.");
+          setIsProcessing(false); // Re-enable button
+          setStage("start");
+          setScanned(false);
+          setCameraActive(true);
       } else {
-        Alert.alert("Invalid Image", "This does not appear to be trash. Try again.");
+          Alert.alert("Invalid Image", "This does not appear to be trash. Try again.");
       }
-  
+
       setPhoto(null); // Clear the image
     }
-  };
+};
+
   const getDistanceFromLatLonInMeters = (lat1, lon1, lat2, lon2) => {
     const R = 6371e3; // Earth's radius in meters
     const φ1 = (lat1 * Math.PI) / 180;
@@ -162,7 +171,7 @@ export default function Scan() {
       const base64Image = await convertImageToBase64(photoUri);
   
       const response = await fetch(
-        `https://vision.googleapis.com/v1/images:annotate?key=${EXPO_PUBLIC_GOOGLE_VISION_KEY}`,
+        `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -295,7 +304,7 @@ export default function Scan() {
           <CameraView
             ref={cameraRef}
             style={styles.camera}
-            onBarcodeScanned={scanned ? undefined : handleQRCodeScanned} // ✅ Disable scanning if `scanned` is true
+            onBarcodeScanned={scanned ? undefined : handleQRCodeScanned} // ✅ Disable scanning if scanned is true
             barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
           />
           {console.log(scanned)}
@@ -306,8 +315,14 @@ export default function Scan() {
         <>
           <Text style={styles.title}>Trash Scanning Stage</Text>
           <CameraView ref={cameraRef} style={styles.camera} />
-          <Button title="Capture Trash Image" onPress={handleCapturePhoto} />
+          <Button 
+            title="Capture Trash Image" 
+            onPress={handleCapturePhoto} 
+            disabled={isProcessing} 
+            color={isProcessing ? "gray" : "#007BFF"} 
+          />
           {isProcessing && <Text>Processing image...</Text>}
+
         </>
       ) : (
         <>

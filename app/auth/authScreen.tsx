@@ -19,11 +19,11 @@ export default function AuthScreen() {
 
   const handleSignUp = async (): Promise<void> => {
     try {
-      const schoolDomain = "@student.guhsdaz.org";
-      if (!email.endsWith(schoolDomain)) {
-        Alert.alert("Invalid Email", "Please use your school email to sign up.");
-        return;
-      }
+      // const schoolDomain = "@student.guhsdaz.org";
+      // if (!email.endsWith(schoolDomain)) {
+      //   Alert.alert("Invalid Email", "Please use your school email to sign up.");
+      //   return;
+      // }
 
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
