@@ -7,6 +7,7 @@ import * as Location from "expo-location";
 import * as ImageManipulator from "expo-image-manipulator";
 import { useFocusEffect } from "expo-router";
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 
 export default function Scan() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -79,13 +80,16 @@ export default function Scan() {
     if (scanned || modalVisible) return; // Prevent multiple scans
   
     setScanned(true); // Disable further scanning
-  
-    setTimeout(() => {
-      setStage("start");
-    }, 110); // Small delay before switching
-    setTimeout(() => {
-      setStage("trash");
-    }, 150); // Small delay before switching
+    if (Platform.OS === "android") {
+      setTimeout(() => {
+        setStage("start");
+      }, 110); // Small delay before switching
+      setTimeout(() => {
+        setStage("trash");
+      }, 150); // Small delay before switching
+    } else {
+      setStage("trash")
+    }
   };
   
 
@@ -180,8 +184,9 @@ export default function Scan() {
               {
                 image: { content: base64Image },
                 features: [
-                  { type: "LABEL_DETECTION", maxResults: 10 }, // Detects trash
-                  { type: "OBJECT_LOCALIZATION", maxResults: 10 }, // Detects objects like trash cans
+                  { type: "LABEL_DETECTION", maxResults: 10 },  // General tags
+                  { type: "OBJECT_LOCALIZATION", maxResults: 10 }, // Objects like trash cans
+                  { type: "WEB_DETECTION", maxResults: 10 },  // Finds similar objects online
                 ],
               },
             ],
@@ -190,40 +195,42 @@ export default function Scan() {
       );
   
       const result = await response.json();
-      console.log("Google Vision API Response:", JSON.stringify(result, null, 2));
+      console.log("📸 Google Vision API Response:", JSON.stringify(result, null, 2));
   
-      // Extract detected labels
+      // ✅ Extract detected labels (general tags)
       const labels = result.responses[0]?.labelAnnotations || [];
-      const localizedObjects = result.responses[0]?.localizedObjectAnnotations || [];
+      console.log("📝 Detected Labels:", labels.map((label) => label.description));
   
-      // ✅ Check if trash exists
-      const trashKeywords = [
-        "garbage", "trash", "litter", "waste", "disposable", "used napkin", 
-        "dirty tissue", "crumpled paper", "rubbish", "plastic bag", "debris", 
-        "tissue paper", "paper"
-      ];
+      // ✅ Extract localized objects (specific objects)
+      const localizedObjects = result.responses[0]?.localizedObjectAnnotations || [];
+      console.log("📍 Detected Objects:", localizedObjects.map((obj) => obj.name));
+  
+      // ✅ Extract web detection results (online reference)
+      const webEntities = result.responses[0]?.webDetection?.webEntities || [];
+      console.log("🌐 Web Entities:", webEntities.map((entity) => entity.description));
+  
+      // ✅ Trash detection
+      const trashKeywords = ["garbage", "trash", "litter", "waste", "disposable", "debris", "paper", "plastic"];
       const trashDetected = labels.some((label) => trashKeywords.includes(label.description.toLowerCase()));
   
-      // ✅ Check if a trash can is detected
-      const trashCanKeywords = ["trash can", "waste bin", "garbage can", "dustbin", "silver"];
-      const trashCanDetected = localizedObjects.some((obj) =>
-        trashCanKeywords.includes(obj.name.toLowerCase())
-      );
+      // ✅ Trash can detection (Check in OBJECT_LOCALIZATION & WEB_DETECTION)
+      const trashCanKeywords = ["trash can", "waste bin", "garbage can", "dustbin", "recycle bin", "waste container"];
+      const trashCanDetected =
+        localizedObjects.some((obj) => trashCanKeywords.includes(obj.name.toLowerCase())) ||
+        webEntities.some((entity) => trashCanKeywords.includes(entity.description?.toLowerCase()));
   
-      console.log("Trash detected:", trashDetected);
-      console.log("Trash Can detected:", trashCanDetected);
+      console.log("🗑️ Trash detected:", trashDetected);
+      console.log("♻️ Trash Can detected:", trashCanDetected);
   
-      // ✅ Final condition: Both trash and a trash can must be present
+      // ✅ Must detect BOTH trash AND trash can
       // return trashDetected && trashCanDetected;
-      return trashDetected
+      return trashDetected;
   
     } catch (error) {
       console.error("Error verifying image:", error);
-      console.log("Google Vision API Response:", JSON.stringify(result, null, 2));
       return false;
     }
   };
-  
 
   // Convert image to base64 for API
   const convertImageToBase64 = async (uri) => {
@@ -272,57 +279,51 @@ export default function Scan() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.cameraContainer}>
       {stage === "qr" ? (
         <>
-          <Text style={styles.title}>Scan QR Code</Text>
-          <Modal
-            animationType="fade"
-            transparent={true}
-            visible={modalVisible}
-            onRequestClose={() => {
-              setModalVisible(false);
-              setScanned(false);
-            }}
-          >
-            <View style={styles.modalContainer}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalText}>{modalMessage}</Text>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => {
-                    setModalVisible(false);
-                    setScanned(false); // Re-enable scanning after closing modal
-                  }}
-                >
-                  <Text style={styles.buttonText}>OK</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
-
+          {/* ✅ Ensure Title is Visible on Top */}
+          <View style={styles.overlay}>
+            <Text style={styles.topTitle}>Scan QR Code</Text>
+          </View>
+  
           <CameraView
             ref={cameraRef}
             style={styles.camera}
-            onBarcodeScanned={scanned ? undefined : handleQRCodeScanned} // ✅ Disable scanning if scanned is true
+            onBarcodeScanned={scanned ? undefined : handleQRCodeScanned}
             barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
           />
-          {console.log(scanned)}
+  
           {scanned && <Text style={styles.processingText}>Processing QR Code...</Text>}
-          <Button title="Cancel" onPress={() => setStage("start")} />
+  
+          {/* ✅ Cancel Button at the Bottom */}
+          <TouchableOpacity style={styles.cancelButton} onPress={() => setStage("start")}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
         </>
       ) : stage === "trash" ? (
         <>
-          <Text style={styles.title}>Trash Scanning Stage</Text>
+          {/* ✅ Title for Trash Scanning */}
+          <View style={styles.overlay}>
+            <Text style={styles.topTitle}>Trash Scanning Stage</Text>
+          </View>
+  
           <CameraView ref={cameraRef} style={styles.camera} />
-          <Button 
-            title="Capture Trash Image" 
-            onPress={handleCapturePhoto} 
-            disabled={isProcessing} 
-            color={isProcessing ? "gray" : "#007BFF"} 
-          />
-          {isProcessing && <Text>Processing image...</Text>}
-
+  
+          {/* ✅ Capture Trash Image Button in the Center */}
+          <View style={styles.captureButtonContainer}>
+            <Button 
+              title={isProcessing ? "Processing image..." : "Capture Trash Image" }
+              onPress={handleCapturePhoto} 
+              disabled={isProcessing} 
+              color={isProcessing ? "gray" : "white"} 
+            />
+          </View>
+  
+          {/* ✅ Cancel Button Below the Capture Button */}
+          <TouchableOpacity style={styles.cancelButton} onPress={() => setStage("start")}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
         </>
       ) : (
         <>
@@ -330,43 +331,66 @@ export default function Scan() {
           <Button title="Scan QR Code" onPress={handleStartScan} />
         </>
       )}
-
     </View>
   );
-}
+  
+  
+  
+}  
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" },
-  title: { fontSize: 24, fontWeight: "bold", marginVertical: 20 },
-  camera: { flex: 1, width: "100%" },
-  modalContainer: {
+  cameraContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)", // Dark transparent background
   },
-  modalContent: {
-    width: "80%",
-    padding: 20,
-    backgroundColor: "white",
-    borderRadius: 10,
+  camera: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    position: "absolute",
+  },
+  /* ✅ Keeps Title Visible on Top */
+  overlay: {
+    position: "absolute",
+    top: 50, // Keep it at the top of the screen
+    width: "100%",
     alignItems: "center",
   },
-  modalText: {
-    fontSize: 18,
-    marginBottom: 15,
-    textAlign: "center",
-  },
-  closeButton: {
-    backgroundColor: "#007BFF",
+  topTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "white",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 5,
-    marginTop: 10,
+    borderRadius: 10,
+    textAlign: "center",
+    zIndex: "10"
   },
-  buttonText: {
-    color: "white",
+  /* ✅ Capture Button Positioned Lower */
+  captureButtonContainer: {
+    position: "absolute",
+    bottom: "20%",
+    width: "80%",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingVertical: 15,
+    paddingHorizontal: 40,
+    borderRadius: 10
+  },
+  /* ✅ Cancel Button at the Bottom */
+  cancelButton: {
+    position: "absolute",
+    bottom: 50,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingVertical: 15,
+    paddingHorizontal: 40,
+    borderRadius: 10
+  },
+  cancelButtonText: {
+    color: "red",
     fontSize: 16,
+    fontWeight: "bold",
   },
-  
 });

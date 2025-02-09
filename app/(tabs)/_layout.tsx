@@ -2,11 +2,10 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function TabsLayout() {
-  console.log("hiii")
   return (
     <Tabs
       screenOptions={{
-        tabBarStyle: { height: 60 }, // Adjust for better spacing
+        tabBarStyle: { height: 80 }, // Adjust for better spacing
         tabBarShowLabel: false, // Removes tab titles
       }}
     >

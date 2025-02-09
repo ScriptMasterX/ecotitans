@@ -24,40 +24,40 @@ export default function AuthScreen() {
       //   Alert.alert("Invalid Email", "Please use your school email to sign up.");
       //   return;
       // }
-
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-
-      // Send email verification
+  
       if (user) {
         await sendEmailVerification(user);
+  
         Alert.alert(
           "Verify Your Email",
-          "A verification email has been sent to your school email. Please verify it before logging in."
+          "A verification email has been sent. Please verify before logging in."
         );
-        setIsLogin(true); // Switch to Login after successful sign-up
+  
+        await auth.signOut(); // ✅ Sign the user out immediately after signup
+        setIsLogin(true); // Switch to Login screen
       }
     } catch (error: any) {
       console.error("Sign-up error:", error.message);
       Alert.alert("Sign-Up Error", error.message);
     }
   };
-
+  
   const handleLogin = async (): Promise<void> => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-
-      // Check if email is verified
+  
       if (!user.emailVerified) {
-        await auth.signOut(); // Immediately sign the user out
+        await auth.signOut(); // ✅ Sign them out if not verified
         Alert.alert(
           "Email Not Verified",
-          "Please verify your email before logging in. Check your inbox for the verification email."
+          "Please verify your email before logging in."
         );
         return;
       }
-
+  
       const token = await user.getIdToken();
       await SecureStore.setItemAsync("authToken", token);
       router.replace("/(tabs)/dashboard");
@@ -66,6 +66,7 @@ export default function AuthScreen() {
       Alert.alert("Login Error", error.message);
     }
   };
+  
 
   const resendVerificationEmail = async () => {
     const user = auth.currentUser;

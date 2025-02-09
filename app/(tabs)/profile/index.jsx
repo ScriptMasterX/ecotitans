@@ -8,11 +8,11 @@ import { useRouter } from "expo-router";
 
 export default function Profile() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null); // Allow both User and null
-  const [name, setName] = useState<string>(""); // User's name
-  const [email, setEmail] = useState<string>(""); // User's email
-  const [bio, setBio] = useState<string>(""); // User's bio
-  const [isEditing, setIsEditing] = useState<boolean>(false); // Toggle edit mode
+  const [user, setUser] = useState(null); // Allow both User and null
+  const [name, setName] = useState(""); // User's name
+  const [email, setEmail] = useState(""); // User's email
+  const [bio, setBio] = useState(""); // User's bio
+  const [isEditing, setIsEditing] = useState(false); // Toggle edit mode
 
   // Listen for authentication state changes
   useEffect(() => {
@@ -35,29 +35,38 @@ export default function Profile() {
     try {
       const userDocRef = doc(db, "users", uid);
       const userDoc = await getDoc(userDocRef);
-
+  
       if (userDoc.exists()) {
         const data = userDoc.data();
         setName(data.name || ""); // Set user's name
         setBio(data.bio || ""); // Set user's bio
+        setEmail(data.email || user.email || ""); // Ensure email is set
+        
+        // ✅ If email is missing in Firestore, update it
+        if (!data.email) {
+          await updateDoc(userDocRef, { email: auth.currentUser.email });
+        }
+        
       } else {
-        // Create a new document if it doesn't exist
-        await setDoc(userDocRef, { name: "", email, bio: "" });
+        // ✅ Create a new document if it doesn't exist
+        await setDoc(userDocRef, { name: "", email: auth.currentUser.email, bio: "" });
         setName("");
         setBio("");
+        setEmail(auth.currentUser.email);
       }
     } catch (error) {
       console.error("Error fetching profile data:", error);
       Alert.alert("Error", "Could not load profile data.");
     }
   };
+  
 
   // Save user profile data to Firestore
   const saveProfile = async () => {
     try {
       if (user) {
         const userDocRef = doc(db, "users", user.uid);
-        await updateDoc(userDocRef, { name, bio }); // Update name and bio
+        await updateDoc(userDocRef, { name, bio, email }); // ✅ Ensure email is included
         Alert.alert("Success", "Your profile has been updated.");
         setIsEditing(false); // Exit edit mode
       }
@@ -66,6 +75,7 @@ export default function Profile() {
       Alert.alert("Error", "Could not save profile data.");
     }
   };
+  
 
   const handleLogout = async () => {
     Alert.alert(
