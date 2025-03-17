@@ -9,6 +9,7 @@ import { useFocusEffect } from "expo-router";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
+
 export default function Scan() {
   const [permission, requestPermission] = useCameraPermissions();
   const [stage, setStage] = useState("start"); // "start", "qr", "trash"
@@ -18,9 +19,11 @@ export default function Scan() {
   const [scannerEnabled, setScannerEnabled] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState(""); // Stores QR scan result
+  const [rewardDetails, setRewardDetails] = useState(null);
   GOOGLE_VISION_KEY = Constants.expoConfig.extra.EXPO_PUBLIC_GOOGLE_VISION_KEY
   const cameraRef = useRef(null);
 
+  
   const SCHOOL_LOCATION = {
     latitude: 33.6086,  // Replace with your school’s latitude
     longitude: -112.0951, // Replace with your school’s longitude
@@ -76,22 +79,149 @@ export default function Scan() {
   };
 
   // Handle QR code scanning
-  const handleQRCodeScanned = ({ data }) => {
+  const handleQRCodeScanned = async ({ data }) => {
     if (scanned || modalVisible) return; // Prevent multiple scans
   
     setScanned(true); // Disable further scanning
-    if (Platform.OS === "android") {
-      setTimeout(() => {
-        setStage("start");
-      }, 110); // Small delay before switching
-      setTimeout(() => {
-        setStage("trash");
-      }, 150); // Small delay before switching
+    if (data.startsWith("TRASH-")) {
+      // ✅ If it's a trash can QR code, proceed to trash scanning
+      if (Platform.OS === "android") {
+        setTimeout(() => {
+          setStage("start");
+        }, 110); // Small delay before switching
+        setTimeout(() => {
+          setStage("trash");
+        }, 150); // Small delay before switching
+      } else {
+        setStage("trash")
+      }
     } else {
-      setStage("trash")
+      // ✅ Assume it's a Firestore Order ID and check Firestore
+      await verifyRewardQRCode(data);
     }
+    
   };
+  // ✅ Verify Reward QR Code in Firestore
+  const verifyRewardQRCode = async (orderId) => {
+    try {
+        console.log(`🔍 Scanning QR Code for order ID: ${orderId}...`);
+
+        const user = auth.currentUser;
+        if (!user) return;
+
+        // ✅ Check if the user is an admin
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists() || !userSnap.data().isAdmin) {
+            console.log("🚫 User is NOT an admin. Access denied.");
+            setModalMessage("Access Denied: You do not have permission to scan reward QR codes.");
+            setModalVisible(true);
+            setScanned(false);
+            return;
+        }
+
+        console.log("✅ User is an admin. Proceeding to check order...");
+
+        // ✅ Fetch latest order details
+        const orderRef = doc(db, "orders", orderId);
+        const orderSnap = await getDoc(orderRef);
+
+        if (!orderSnap.exists()) {
+            console.log("❌ Order does not exist in Firestore.");
+            setModalMessage("Invalid QR Code: This reward order does not exist.");
+            setModalVisible(true);
+            setScanned(false);
+            return;
+        }
+
+        const orderData = orderSnap.data();
+        console.log("📄 Firestore returned order data:", orderData);
+
+        // ✅ Check if order was already redeemed BEFORE setting state
+        if (orderData.status === "Redeemed") {
+            console.log(`⚠️ Order ${orderId} is already redeemed. Blocking modal.`);
+            setModalMessage("Already Redeemed: This reward has already been claimed.");
+            setModalVisible(true);
+            setScanned(false);
+            return;
+        }
+
+        console.log("✅ Order is valid and not yet redeemed. Updating state and opening modal...");
+        
+        // ✅ Only update state if the order is still valid
+        setRewardDetails({ orderId, ...orderData });
+        setModalVisible(true);
+
+    } catch (error) {
+        console.error("❌ Error verifying reward:", error);
+        setModalMessage("Error: Could not verify reward.");
+        setModalVisible(true);
+        setScanned(false);
+    }
+};
+
+
   
+// ✅ Mark Order as Redeemed
+const confirmRewardRedemption = async () => {
+  try {
+      console.log("🔄 Starting reward redemption process...");
+
+      // ✅ Reference the order document
+      const orderRef = doc(db, "orders", rewardDetails.orderId);
+
+      // ✅ Update the order status to "Redeemed"
+      await updateDoc(orderRef, { status: "Redeemed" });
+
+      console.log(`✅ Order ${rewardDetails.orderId} marked as Redeemed in Firestore.`);
+
+      Alert.alert(
+          "✅ Redemption Confirmed", 
+          `The reward "${rewardDetails.rewardName}" has been successfully redeemed!`
+      );
+
+      setScanned(false);
+      setModalVisible(false);
+      setStage("start");
+
+      // ✅ Fetch updated order details from Firestore after redemption
+      fetchUpdatedOrder(rewardDetails.orderId);
+
+  } catch (error) {
+      console.error("❌ Error confirming redemption:", error);
+      Alert.alert("❌ Error", "Could not confirm redemption.");
+  }
+};
+
+const fetchUpdatedOrder = async (orderId) => {
+  try {
+      console.log(`🔄 Fetching updated order data for ID: ${orderId}...`);
+
+      const orderRef = doc(db, "orders", orderId);
+      const orderSnap = await getDoc(orderRef);
+
+      if (orderSnap.exists()) {
+          const updatedOrder = orderSnap.data();
+          console.log("📄 Firestore returned updated order data:", updatedOrder);
+
+          // ✅ If the order is now redeemed, update local state
+          if (updatedOrder.status === "Redeemed") {
+              console.log("✅ Order is now Redeemed. Updating local state...");
+              setRewardDetails((prevDetails) => ({
+                  ...prevDetails,
+                  status: "Redeemed",
+              }));
+          } else {
+              console.log("⚠️ Order is NOT marked as Redeemed yet.");
+          }
+      } else {
+          console.log("❌ Order not found in Firestore.");
+      }
+  } catch (error) {
+      console.error("❌ Error fetching updated order:", error);
+  }
+};
 
 
   // Capture and analyze trash image
@@ -112,7 +242,6 @@ export default function Scan() {
 
       if (isValidTrash) {
           await saveScanData(auth.currentUser?.uid); // Store result, NOT image
-          Alert.alert("Success", "Trash detected! You earned points.");
           setIsProcessing(false); // Re-enable button
           setStage("start");
           setScanned(false);
@@ -186,7 +315,6 @@ export default function Scan() {
                 features: [
                   { type: "LABEL_DETECTION", maxResults: 10 },  // General tags
                   { type: "OBJECT_LOCALIZATION", maxResults: 10 }, // Objects like trash cans
-                  { type: "WEB_DETECTION", maxResults: 10 },  // Finds similar objects online
                 ],
               },
             ],
@@ -204,20 +332,15 @@ export default function Scan() {
       // ✅ Extract localized objects (specific objects)
       const localizedObjects = result.responses[0]?.localizedObjectAnnotations || [];
       console.log("📍 Detected Objects:", localizedObjects.map((obj) => obj.name));
-  
-      // ✅ Extract web detection results (online reference)
-      const webEntities = result.responses[0]?.webDetection?.webEntities || [];
-      console.log("🌐 Web Entities:", webEntities.map((entity) => entity.description));
-  
+      
       // ✅ Trash detection
-      const trashKeywords = ["garbage", "trash", "litter", "waste", "disposable", "debris", "paper", "plastic"];
+      const trashKeywords = ["aluminum", "foil", "silver", "waste", "disposable", "debris", "paper", "plastic"];
       const trashDetected = labels.some((label) => trashKeywords.includes(label.description.toLowerCase()));
   
       // ✅ Trash can detection (Check in OBJECT_LOCALIZATION & WEB_DETECTION)
       const trashCanKeywords = ["trash can", "waste bin", "garbage can", "dustbin", "recycle bin", "waste container"];
       const trashCanDetected =
         localizedObjects.some((obj) => trashCanKeywords.includes(obj.name.toLowerCase())) ||
-        webEntities.some((entity) => trashCanKeywords.includes(entity.description?.toLowerCase()));
   
       console.log("🗑️ Trash detected:", trashDetected);
       console.log("♻️ Trash Can detected:", trashCanDetected);
@@ -251,7 +374,8 @@ export default function Scan() {
       if (docSnap.exists()) {
         await updateDoc(scanRef, {
           lastScan: new Date(),
-          points: (docSnap.data().points || 0) + 10, // Add points
+          points: (docSnap.data().points || 0) + 50, // Add points
+          lifetimePoints: (docSnap.data().lifetimePoints || 0) + 50, // Add points
         });
       } else {
         await setDoc(scanRef, {
@@ -262,7 +386,7 @@ export default function Scan() {
       }
   
       // ✅ Show success message & refresh dashboard
-      Alert.alert("Success", "Trash detected! Points updated.");
+      Alert.alert("Success", "Trash detected! You earned 50 points!.");
   
     } catch (error) {
       console.error("Error saving scan data:", error);
@@ -282,6 +406,56 @@ export default function Scan() {
     <View style={styles.cameraContainer}>
       {stage === "qr" ? (
         <>
+          <Modal
+            animationType="slide"
+            transparent={true}
+            visible={modalVisible}
+            onRequestClose={() => setModalVisible(false)}
+          >
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                {rewardDetails ? (
+                  <>
+                    <Text style={styles.modalTitle}>
+                      {rewardDetails.status === "Redeemed" ? "Already Redeemed" : "Confirm Redemption"}
+                    </Text>
+                    
+                    <Text>Reward: {rewardDetails?.rewardName}</Text>
+                    <Text>Cost: {rewardDetails?.cost} Points</Text>
+
+                    {rewardDetails.status === "Redeemed" ? (
+                      // ✅ If already redeemed, show a message and only allow closing
+                      <>
+                        <Text style={{ color: "red", fontWeight: "bold", marginTop: 10 }}>
+                          This reward has already been claimed.
+                        </Text>
+                        <Button 
+                          title="Close" 
+                          onPress={() => { setModalVisible(false); setScanned(false); }} 
+                          color="red" 
+                        />
+                      </>
+                    ) : (
+                      // ✅ Otherwise, show confirmation buttons
+                      <>
+                        <Button title="✅ Confirm" onPress={confirmRewardRedemption} color="green" />
+                        <Button title="❌ Cancel" onPress={() => { setModalVisible(false); setScanned(false); }} color="blue" />
+                      </>
+                    )}
+                  </>
+                ) : (
+                  // ✅ Fallback for general errors
+                  <>
+                    <Text style={styles.modalTitle}>Error</Text>
+                    <Text>{modalMessage}</Text>
+                    <Button title="Close" onPress={() => { setModalVisible(false); setScanned(false); }} color="red" />
+                  </>
+                )}
+              </View>
+            </View>
+          </Modal>
+
+
           {/* ✅ Ensure Title is Visible on Top */}
           <View style={styles.overlay}>
             <Text style={styles.topTitle}>Scan QR Code</Text>
@@ -311,19 +485,28 @@ export default function Scan() {
           <CameraView ref={cameraRef} style={styles.camera} />
   
           {/* ✅ Capture Trash Image Button in the Center */}
-          <View style={styles.captureButtonContainer}>
-            <Button 
-              title={isProcessing ? "Processing image..." : "Capture Trash Image" }
-              onPress={handleCapturePhoto} 
-              disabled={isProcessing} 
-              color={isProcessing ? "gray" : "white"} 
-            />
-          </View>
+          <TouchableOpacity
+            style={styles.captureButtonContainer}
+            onPress={isProcessing ? console.log("Processing...") : handleCapturePhoto}
+          >
+            <Text
+              style={{
+                color: isProcessing ? "gray" : "white"
+              }}
+            >
+              {isProcessing ? "Processing image..." : "Capture Trash Image" }
+            </Text>
+          </TouchableOpacity>
   
           {/* ✅ Cancel Button Below the Capture Button */}
-          <TouchableOpacity style={styles.cancelButton} onPress={() => setStage("start")}>
+          <TouchableOpacity 
+            style={[styles.cancelButton, isProcessing && { opacity: 0.5 }]} 
+            onPress={() => !isProcessing && setStage("start")}
+            disabled={isProcessing}
+          >
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
+
         </>
       ) : (
         <>
@@ -339,6 +522,13 @@ export default function Scan() {
 }  
 
 const styles = StyleSheet.create({
+  container: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    height: "100%"
+  },
   cameraContainer: {
     flex: 1,
     justifyContent: "center",
@@ -366,7 +556,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 10,
     textAlign: "center",
-    zIndex: "10"
+    zIndex: 10
   },
   /* ✅ Capture Button Positioned Lower */
   captureButtonContainer: {
@@ -388,8 +578,68 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     borderRadius: 10
   },
+  processingText: {
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingVertical: 15,
+    paddingHorizontal: 40,
+    color: "white",
+    borderRadius: 10
+  },
   cancelButtonText: {
     color: "red",
+    fontSize: 16,
+    fontWeight: "bold",
+
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)", // Dark overlay background
+  },
+  modalContent: {
+    width: "80%",
+    padding: 20,
+    backgroundColor: "white",
+    borderRadius: 10,
+    alignItems: "center",
+    elevation: 5, // Shadow effect for Android
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  warningText: {
+    fontSize: 14,
+    color: "red",
+    fontWeight: "bold",
+    marginTop: 10,
+    textAlign: "center",
+  },
+  closeButton: {
+    marginTop: 15,
+    padding: 10,
+    borderRadius: 5,
+    backgroundColor: "#007BFF",
+    width: "100%",
+    alignItems: "center",
+  },
+  confirmButton: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 5,
+    backgroundColor: "green",
+    width: "100%",
+    alignItems: "center",
+  },
+  buttonText: {
+    color: "white",
     fontSize: 16,
     fontWeight: "bold",
   },

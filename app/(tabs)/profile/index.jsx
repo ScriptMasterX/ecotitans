@@ -29,7 +29,10 @@ export default function Profile() {
 
     return unsubscribe; // Cleanup the listener on unmount
   }, []);
-
+  function generateGuestName() {
+    const randomNumbers = Math.floor(100000 + Math.random() * 900000); // Generates a 6-digit number
+    return `Guest ${randomNumbers}`;
+  }
   // Fetch user profile data from Firestore
   const fetchProfile = async (uid) => {
     try {
@@ -50,8 +53,8 @@ export default function Profile() {
       } else {
         // ✅ Create a new document if it doesn't exist
         await setDoc(userDocRef, { name: "", email: auth.currentUser.email, bio: "" });
-        setName("");
-        setBio("");
+        setName(generateGuestName());
+        setBio("Add a bio to get started!");
         setEmail(auth.currentUser.email);
       }
     } catch (error) {

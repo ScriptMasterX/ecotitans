@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, Button, Alert, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { auth } from "../firebaseConfig";
+import { auth, db } from "../firebaseConfig";
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -9,6 +9,7 @@ import {
   sendPasswordResetEmail 
 } from "firebase/auth";
 import * as SecureStore from "expo-secure-store";
+import { doc, setDoc } from "firebase/firestore";
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -19,11 +20,6 @@ export default function AuthScreen() {
 
   const handleSignUp = async (): Promise<void> => {
     try {
-      // const schoolDomain = "@student.guhsdaz.org";
-      // if (!email.endsWith(schoolDomain)) {
-      //   Alert.alert("Invalid Email", "Please use your school email to sign up.");
-      //   return;
-      // }
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
   
@@ -35,8 +31,22 @@ export default function AuthScreen() {
           "A verification email has been sent. Please verify before logging in."
         );
   
-        await auth.signOut(); // ✅ Sign the user out immediately after signup
-        setIsLogin(true); // Switch to Login screen
+        // ✅ Create Firestore document for new user
+        const userRef = doc(db, "users", user.uid);
+        await setDoc(userRef, {
+          name: `Guest ${Math.floor(100000 + Math.random() * 900000)}`, // Random Guest Name
+          email: user.email,
+          bio: "Add a bio to get started!",
+          points: 0,          // 🔥 Current Points
+          lifetimePoints: 0,  // 🔥 Total Earned Points
+          lastScan: null,
+          isAdmin: false
+        });
+  
+        console.log("✅ Firestore document created for new user");
+  
+        await auth.signOut(); // ✅ Log them out after signup
+        setIsLogin(true); // Switch to login screen
       }
     } catch (error: any) {
       console.error("Sign-up error:", error.message);
