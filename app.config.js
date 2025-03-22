@@ -6,8 +6,12 @@ export default {
     slug: "real-app",
     version: "1.0.0",
     orientation: "portrait",
+    owner: "smotheredpumpkin",
     icon: "./assets/images/icon.png",
     extra: {
+      eas: {
+        projectId: "98c43e46-2016-4d4a-a774-d4ed29c6af35"
+      },
       EXPO_PUBLIC_GOOGLE_VISION_KEY: process.env.EXPO_PUBLIC_GOOGLE_VISION_KEY
     },
     scheme: "myapp",
@@ -15,7 +19,10 @@ export default {
     newArchEnabled: true,
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.techtitans.realapp"
+      bundleIdentifier: "com.techtitans.realapp",
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false
+      }
     },
     android: {
       adaptiveIcon: {
@@ -39,7 +46,16 @@ export default {
           backgroundColor: "#ffffff"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          ios: {
+            useFrameworks: "static",
+            useModularHeaders: true
+          }
+        }
+      ]
     ],
     experiments: {
       typedRoutes: true
