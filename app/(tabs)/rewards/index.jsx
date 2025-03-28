@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Button, FlatList, Modal, TouchableOpacity, Alert } from "react-native";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
-import { NavigationContainer } from "@react-navigation/native";
 import { auth, db } from "../../firebaseConfig";
 import { collection, doc, getDoc, getDocs, updateDoc, addDoc, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import QRCode from "react-native-qrcode-svg";
@@ -256,23 +255,21 @@ export default function Rewards() {
   };
 
   return (
-    <NavigationContainer independent={true}>
-      <View style={styles.container}>
-        <Text style={styles.points}>Your Points: {points}</Text>
-        <Tab.Navigator
-          screenOptions={{
-            tabBarLabelStyle: { fontSize: 14, fontWeight: "bold" },
-            tabBarStyle: { backgroundColor: "#007BFF" },
-            tabBarIndicatorStyle: { backgroundColor: "white" },
-          }}
-        >
-          <Tab.Screen name="Rewards">
-            {() => <RewardsTab points={points} fetchUserPoints={fetchUserPoints} />}
-          </Tab.Screen>
-          <Tab.Screen name="Order History" component={OrderHistoryTab} />
-        </Tab.Navigator>
-      </View>
-    </NavigationContainer>
+    <View style={styles.container}>
+      <Text style={styles.points}>Your Points: {points}</Text>
+      <Tab.Navigator
+        screenOptions={{
+          tabBarLabelStyle: { fontSize: 14, fontWeight: "bold" },
+          tabBarStyle: { backgroundColor: "#007BFF" },
+          tabBarIndicatorStyle: { backgroundColor: "white" },
+        }}
+      >
+        <Tab.Screen name="Rewards">
+          {() => <RewardsTab points={points} fetchUserPoints={fetchUserPoints} />}
+        </Tab.Screen>
+        <Tab.Screen name="Order History" component={OrderHistoryTab} />
+      </Tab.Navigator>
+    </View>
   );
 }
 

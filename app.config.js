@@ -7,7 +7,7 @@ export default {
     version: "1.0.0",
     orientation: "portrait",
     owner: "smotheredpumpkin",
-    icon: "./assets/images/icon.png",
+    icon: "./assets/images/appIcon.png",
     extra: {
       eas: {
         projectId: "98c43e46-2016-4d4a-a774-d4ed29c6af35"
@@ -21,7 +21,8 @@ export default {
       supportsTablet: true,
       bundleIdentifier: "com.techtitans.realapp",
       infoPlist: {
-        ITSAppUsesNonExemptEncryption: false
+        ITSAppUsesNonExemptEncryption: false,
+        NSCameraUsageDescription: "This app uses your camera to scan QR codes and verify trash disposal to award you points."
       }
     },
     android: {

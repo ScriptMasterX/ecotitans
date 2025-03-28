@@ -4,6 +4,11 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebaseConfig"; // Ensure your Firebase is initialized properly
 import { useRouter } from "expo-router";
+import { LogBox } from 'react-native';
+
+LogBox.ignoreLogs([
+  'A props object containing a "key" prop is being spread into JSX'
+]);
 
 export default function RootLayout() {
   const router = useRouter();

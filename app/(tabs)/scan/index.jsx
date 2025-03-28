@@ -7,7 +7,7 @@ import * as Location from "expo-location";
 import * as ImageManipulator from "expo-image-manipulator";
 import { useFocusEffect } from "expo-router";
 import Constants from "expo-constants";
-import { Platform } from "react-native";
+import { Platform, Linking } from "react-native";
 
 
 export default function Scan() {
@@ -20,9 +20,9 @@ export default function Scan() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState(""); // Stores QR scan result
   const [rewardDetails, setRewardDetails] = useState(null);
-  GOOGLE_VISION_KEY = Constants.expoConfig.extra.EXPO_PUBLIC_GOOGLE_VISION_KEY
+  const GOOGLE_VISION_KEY = Constants.expoConfig.extra.EXPO_PUBLIC_GOOGLE_VISION_KEY
   const cameraRef = useRef(null);
-
+  const [locationDeniedPermanently, setLocationDeniedPermanently] = useState(false);
   
   const SCHOOL_LOCATION = {
     latitude: 33.6086,  // Replace with your school’s latitude
@@ -41,12 +41,19 @@ export default function Scan() {
   // Request camera permissions
   // ✅ Request permissions before allowing the scan to start
   const handleStartScan = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Denied", "Location access is required.");
+      if (!canAskAgain) {
+        setLocationDeniedPermanently(true);
+      } else {
+        Alert.alert(
+          "Location Access Needed",
+          "We use your location to confirm you are on school property before submitting trash scans. Please enable location in Settings."
+        );
+      }
       return;
     }
-
+    
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
@@ -59,15 +66,26 @@ export default function Scan() {
     setScanned(false);
     setAlertShown(false);
   };
-
-  if (!permission?.granted) {
+  if (locationDeniedPermanently) {
     return (
       <View style={styles.container}>
-        <Text>Please enable camera permissions in your settings.</Text>
-        <Button title="Grant Permission" onPress={requestPermission} />
+        <Text style={{ textAlign: "center", marginBottom: 20 }}>
+          Location access is required to verify that you're on school grounds. Please enable location permissions in your device settings.
+        </Text>
+        <Button
+          title="Open Settings"
+          onPress={() => {
+            if (Platform.OS === "ios") {
+              Linking.openURL("app-settings:");
+            } else {
+              Linking.openSettings();
+            }
+          }}
+        />
       </View>
     );
   }
+  
   
   // Check if it's a valid school day & time
   const isSchoolDayAndTime = () => {
@@ -245,12 +263,10 @@ const fetchUpdatedOrder = async (orderId) => {
           setIsProcessing(false); // Re-enable button
           setStage("start");
           setScanned(false);
-          setCameraActive(true);
       } else {
           Alert.alert("Invalid Image", "This does not appear to be trash. Try again.");
       }
 
-      setPhoto(null); // Clear the image
     }
 };
 
@@ -395,12 +411,36 @@ const fetchUpdatedOrder = async (orderId) => {
   
 
   if (!permission?.granted) {
+    if (permission?.status === "denied" && !permission?.canAskAgain) {
+      return (
+        <View style={styles.container}>
+          <Text style={{ textAlign: "center", marginBottom: 20 }}>
+            Camera access is required to scan QR codes and verify trash disposal. Please enable access in your device settings.
+          </Text>
+          <Button
+            title="Open Settings"
+            onPress={() => {
+              if (Platform.OS === "ios") {
+                Linking.openURL("app-settings:");
+              } else {
+                Linking.openSettings();
+              }
+            }}
+          />
+        </View>
+      );
+    }
+  
     return (
       <View style={styles.container}>
-        <Text>Please Enable Camera Permissions</Text>
+        <Text style={{ textAlign: "center", marginBottom: 20 }}>
+          This app uses your camera to scan QR codes and detect trash. Please allow access when prompted.
+        </Text>
+        <Button title="Allow Camera Access" onPress={requestPermission} />
       </View>
     );
   }
+  
 
   return (
     <View style={styles.cameraContainer}>
