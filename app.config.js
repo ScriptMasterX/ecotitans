@@ -12,17 +12,21 @@ export default {
       eas: {
         projectId: "98c43e46-2016-4d4a-a774-d4ed29c6af35"
       },
-      EXPO_PUBLIC_GOOGLE_VISION_KEY: process.env.EXPO_PUBLIC_GOOGLE_VISION_KEY
+      EXPO_PUBLIC_GOOGLE_VISION_KEY: process.env.EXPO_PUBLIC_GOOGLE_VISION_KEY,
+      EXPO_PUBLIC_REVIEW_MODE: process.env.EXPO_PUBLIC_REVIEW_MODE === "true"
     },
     scheme: "myapp",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     ios: {
       supportsTablet: true,
+      buildNumber: "17",
       bundleIdentifier: "com.techtitans.realapp",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
-        NSCameraUsageDescription: "This app uses your camera to scan QR codes and verify trash disposal to award you points."
+        NSCameraUsageDescription: "This app uses your camera to scan QR codes and verify trash disposal to award you points.",
+        NSLocationWhenInUseUsageDescription: "We need your location to verify you're on school grounds before allowing scans."
+
       }
     },
     android: {

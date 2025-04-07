@@ -15,12 +15,11 @@ export default function Scan() {
   const [stage, setStage] = useState("start"); // "start", "qr", "trash"
   const [scanned, setScanned] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [alertShown, setAlertShown] = useState(false);
-  const [scannerEnabled, setScannerEnabled] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState(""); // Stores QR scan result
   const [rewardDetails, setRewardDetails] = useState(null);
   const GOOGLE_VISION_KEY = Constants.expoConfig.extra.EXPO_PUBLIC_GOOGLE_VISION_KEY
+  const REVIEW_MODE = Constants.expoConfig.extra.EXPO_PUBLIC_REVIEW_MODE;
   const cameraRef = useRef(null);
   const [locationDeniedPermanently, setLocationDeniedPermanently] = useState(false);
   
@@ -31,13 +30,28 @@ export default function Scan() {
   };
   useFocusEffect(
     React.useCallback(() => {
+      const checkLocationPermission = async () => {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status === "granted") {
+          setLocationDeniedPermanently(false);
+        }
+      };
+  
+      checkLocationPermission();
+  
       return () => {
-        // When the screen loses focus, reset scanning state
         setStage("start");
         setScanned(false);
       };
     }, [])
   );
+  if (permission === null || permission === undefined) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading camera permissions...</Text>
+      </View>
+    );
+  }
   // Request camera permissions
   // ✅ Request permissions before allowing the scan to start
   const handleStartScan = async () => {
@@ -64,7 +78,6 @@ export default function Scan() {
 
     setStage("qr"); // Proceed to QR scanning
     setScanned(false);
-    setAlertShown(false);
   };
   if (locationDeniedPermanently) {
     return (
@@ -89,6 +102,11 @@ export default function Scan() {
   
   // Check if it's a valid school day & time
   const isSchoolDayAndTime = () => {
+    if (REVIEW_MODE) {
+      console.log("🚨 Apple Review Mode: Skipping school day/time check");
+      return true;
+    }
+
     const now = new Date();
     const day = now.getDay();
     const hours = now.getHours();
@@ -254,7 +272,7 @@ const fetchUpdatedOrder = async (orderId) => {
           setStage("start");
           return;
       }
-
+      
       const isValidTrash = await verifyTrashImage(photoData.uri);
       setIsProcessing(false); // Re-enable button after processing
 
@@ -267,7 +285,10 @@ const fetchUpdatedOrder = async (orderId) => {
           Alert.alert("Invalid Image", "This does not appear to be trash. Try again.");
       }
 
-    }
+    } if (!cameraRef.current) {
+      Alert.alert("Camera not ready", "Please try again.");
+      return;
+    }    
 };
 
   const getDistanceFromLatLonInMeters = (lat1, lon1, lat2, lon2) => {
@@ -286,6 +307,11 @@ const fetchUpdatedOrder = async (orderId) => {
   };
   
   const checkIfAtSchool = async () => {
+    if (REVIEW_MODE) {
+      console.log("🚨 Apple Review Mode: Skipping location check");
+      return true;
+    }
+  
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
@@ -297,7 +323,6 @@ const fetchUpdatedOrder = async (orderId) => {
       const userLatitude = location.coords.latitude;
       const userLongitude = location.coords.longitude;
   
-      // Calculate distance to school
       const distance = getDistanceFromLatLonInMeters(
         userLatitude,
         userLongitude,
@@ -305,9 +330,7 @@ const fetchUpdatedOrder = async (orderId) => {
         SCHOOL_LOCATION.longitude
       );
   
-      console.log(`User distance from school: ${distance} meters`);
-  
-      return distance <= SCHOOL_LOCATION.radius; // Returns true if within allowed radius
+      return distance <= SCHOOL_LOCATION.radius;
     } catch (error) {
       console.error("Error getting location:", error);
       return false;
@@ -345,25 +368,19 @@ const fetchUpdatedOrder = async (orderId) => {
       const labels = result.responses[0]?.labelAnnotations || [];
       console.log("📝 Detected Labels:", labels.map((label) => label.description));
   
-      // ✅ Extract localized objects (specific objects)
-      const localizedObjects = result.responses[0]?.localizedObjectAnnotations || [];
-      console.log("📍 Detected Objects:", localizedObjects.map((obj) => obj.name));
-      
       // ✅ Trash detection
       const trashKeywords = ["aluminum", "foil", "silver", "waste", "disposable", "debris", "paper", "plastic"];
       const trashDetected = labels.some((label) => trashKeywords.includes(label.description.toLowerCase()));
   
       // ✅ Trash can detection (Check in OBJECT_LOCALIZATION & WEB_DETECTION)
-      const trashCanKeywords = ["trash can", "waste bin", "garbage can", "dustbin", "recycle bin", "waste container"];
-      const trashCanDetected =
-        localizedObjects.some((obj) => trashCanKeywords.includes(obj.name.toLowerCase())) ||
-  
+      const trashCanKeywords = ["trash can", "waste bin", "garbage can", "dustbin", "recycle bin", "Waste container", "waste containment" , "Cleanliness", "Lid"];
+      const trashCanDetected = labels.some((label) => trashCanKeywords.includes(label.description.toLowerCase()));
       console.log("🗑️ Trash detected:", trashDetected);
       console.log("♻️ Trash Can detected:", trashCanDetected);
   
       // ✅ Must detect BOTH trash AND trash can
       // return trashDetected && trashCanDetected;
-      return trashDetected;
+      return trashDetected && trashCanDetected;
   
     } catch (error) {
       console.error("Error verifying image:", error);
@@ -436,7 +453,14 @@ const fetchUpdatedOrder = async (orderId) => {
         <Text style={{ textAlign: "center", marginBottom: 20 }}>
           This app uses your camera to scan QR codes and detect trash. Please allow access when prompted.
         </Text>
-        <Button title="Allow Camera Access" onPress={requestPermission} />
+        <Button title="Continue" onPress={requestPermission} />
+      </View>
+    );
+  }
+  if (!CameraView || !permission) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading camera module...</Text>
       </View>
     );
   }
@@ -501,12 +525,16 @@ const fetchUpdatedOrder = async (orderId) => {
             <Text style={styles.topTitle}>Scan QR Code</Text>
           </View>
   
-          <CameraView
-            ref={cameraRef}
-            style={styles.camera}
-            onBarcodeScanned={scanned ? undefined : handleQRCodeScanned}
-            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-          />
+          {permission?.granted ? (
+            <CameraView
+              ref={cameraRef}
+              style={styles.camera}
+              onBarcodeScanned={scanned ? undefined : handleQRCodeScanned}
+              barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+            />
+          ) : null}
+
+
   
           {scanned && <Text style={styles.processingText}>Processing QR Code...</Text>}
   

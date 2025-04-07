@@ -199,9 +199,17 @@ const OrderHistoryTab = () => {
             <Text style={styles.modalTitle}>Your QR Code</Text>
 
             {/* ✅ Generate QR Code (Unique per order) */}
-            {selectedOrder && (
-              <QRCode value={selectedOrder.id} size={200} />
+            {selectedOrder ? (
+              <View style={{ padding: 20, backgroundColor: "#fff", borderRadius: 10 }}>
+                <QRCode
+                  value={selectedOrder.id}
+                  size={200}
+                />
+              </View>
+            ) : (
+              <Text>Loading QR Code...</Text>
             )}
+
 
             {/* ✅ Warning Message */}
             <Text style={styles.warningText}>⚠️ Keep this code safe! It's one-time use only.</Text>
