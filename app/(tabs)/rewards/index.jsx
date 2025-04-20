@@ -212,7 +212,7 @@ const OrderHistoryTab = () => {
 
 
             {/* ✅ Warning Message */}
-            <Text style={styles.warningText}>⚠️ Keep this code safe! It's one-time use only.</Text>
+            <Text style={styles.warningText}>⚠️ Keep this code safe! It's one-time use only. Redeem it in the Thundershack.</Text>
 
             {/* ✅ Close Button */}
             <TouchableOpacity

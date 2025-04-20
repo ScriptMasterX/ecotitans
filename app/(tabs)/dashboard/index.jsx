@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, FlatList } from "react-native";
+import { View, Text, StyleSheet, FlatList, Image, ScrollView } from "react-native";
 import { auth, db } from "../../firebaseConfig";
 import { doc, onSnapshot, collection, query, where, orderBy, getDocs } from "firebase/firestore";
 import { ProgressBar } from "react-native-paper";
@@ -13,26 +13,38 @@ export default function Dashboard() {
   const [pointsToNextRank, setPointsToNextRank] = useState(500);
   const [recentActivity, setRecentActivity] = useState([]);
   const [lastScan, setLastScan] = useState(null);
+  const [name, setName] = useState("");
+  
+  const presetAvatars = [
+    require("../../../assets/images/avatar1.jpeg"),
+    require("../../../assets/images/avatar2.jpeg"),
+    require("../../../assets/images/avatar3.jpeg"),
+    require("../../../assets/images/avatar4.jpeg"),
+    require("../../../assets/images/avatar5.jpeg"),
+    require("../../../assets/images/avatar6.jpeg"),
+  ];
+  const [avatar, setAvatar] = useState(presetAvatars[0]);
 
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
-
-    // 🔄 Listen for real-time updates from Firestore (User Data)
+  
     const unsubscribe = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
       if (docSnap.exists()) {
         const userData = docSnap.data();
+        setName(userData.name || "");
         setPoints(userData.points || 0);
         setLifetimePoints(userData.lifetimePoints || 0);
         setLastScan(userData.lastScan?.toDate() || null);
-
-        // ✅ Update rank and progress
         updateRankProgress(userData.lifetimePoints || 0);
+        setAvatar(presetAvatars[userData.avatarIndex ?? 0]);
+
       }
     });
-
-    return () => unsubscribe(); // Cleanup listener on unmount
+  
+    return () => unsubscribe();
   }, []);
+  
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -104,8 +116,14 @@ export default function Dashboard() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Welcome to Your Dashboard</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.welcomeWrapper}>
+        {avatar !== null && (
+          <Image source={avatar} style={styles.welcomeAvatar} />
+        )}
+        <Text style={styles.title}>Welcome, {name}!</Text>
+      </View>
+
       
       {/* 🔥 Points & Rank Section - Clean & Minimal */}
       <View style={styles.pointsContainer}>
@@ -139,26 +157,32 @@ export default function Dashboard() {
       {recentActivity.length === 0 ? (
         <Text style={styles.noActivity}>No recent activity.</Text>
       ) : (
-        <FlatList
-          data={recentActivity}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.activityItem}>
-              <Text style={styles.activityText}>🎁 Redeemed: {item.rewardName}</Text>
-              <Text style={styles.activityTimestamp}>
-                {new Date(item.timestamp).toLocaleString()}
-              </Text>
-            </View>
-          )}
-        />
+        recentActivity.map((item) => (
+          <View key={item.id} style={styles.activityItem}>
+            <Text style={styles.activityText}>🎁 Redeemed: {item.rewardName}</Text>
+            <Text style={styles.activityTimestamp}>
+              {new Date(item.timestamp).toLocaleString()}
+            </Text>
+          </View>
+        ))
       )}
-    </View>
+
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: "#fff" },
-  title: { fontSize: 24, fontWeight: "bold", marginBottom: 15, textAlign: "center" },
+  container: { 
+    padding: 20, 
+    backgroundColor: "#fff" 
+  }, 
+  title: { 
+    fontSize: 24, 
+    fontWeight: "500", 
+    marginTop: 15,
+    marginBottom: 30, 
+    textAlign: "center" 
+  },
 
   // 🔥 Points & Rank Section - Simple & Clean
   pointsContainer: {
@@ -178,21 +202,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#333",
+    padding: 10
   },
   pointsValue: {
     fontSize: 16,
     fontWeight: "bold",
     color: "#007BFF",
+    padding: 10
   },
   rankLabel: {
     fontSize: 16,
     fontWeight: "bold",
     color: "#333",
+    padding: 10
   },
   rankValue: {
     fontSize: 16,
     fontWeight: "bold",
     textTransform: "uppercase",
+    padding: 10
   },
 
   // 🎖 Rank Colors
@@ -214,6 +242,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
     marginTop: 10,
+    marginBottom: 10
   },
   progressBar: {
     height: 10,
@@ -223,13 +252,40 @@ const styles = StyleSheet.create({
   },
 
   // 🔄 Last Scan
-  lastScan: { fontSize: 16, marginBottom: 15, textAlign: "center", fontStyle: "italic" },
+  lastScan: { 
+    fontSize: 16, 
+    paddingTop: 15,
+    paddingBottom: 20,
+    textAlign: "center", 
+    fontStyle: "italic" 
+  },
 
   // 📝 Recent Activity Section
-  activityTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 5 },
+  activityTitle: { 
+    fontSize: 18, 
+    fontWeight: "bold", 
+    marginBottom: 20 
+  },
   noActivity: { fontSize: 16, fontStyle: "italic", textAlign: "center" },
 
   activityItem: { padding: 10, marginBottom: 10, backgroundColor: "#f4f4f4", borderRadius: 10 },
   activityText: { fontSize: 16, fontWeight: "bold" },
   activityTimestamp: { fontSize: 14, color: "gray", marginTop: 5 },
+  welcomeWrapper: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  welcomeAvatar: {
+    width: 140,
+    height: 140,
+    borderRadius: "50%",
+    marginRight: 10,
+    borderColor: "#84CC16",
+    borderWidth: 4
+
+  },
+  
 });

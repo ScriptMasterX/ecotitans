@@ -1,8 +1,9 @@
-import React, { useState, useRef } from "react";
-import { View, Text, StyleSheet, Alert, Button, Modal, TouchableOpacity } from "react-native";
+import React, { useState, useRef, useEffect } from "react";
+import { View, Text, StyleSheet, Alert, Button, Modal, TouchableOpacity, Image } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { auth, db } from "../../firebaseConfig";
-import { doc, setDoc, updateDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, updateDoc, getDoc, onSnapshot, increment } from "firebase/firestore";
+
 import * as Location from "expo-location";
 import * as ImageManipulator from "expo-image-manipulator";
 import { useFocusEffect } from "expo-router";
@@ -18,6 +19,14 @@ export default function Scan() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState(""); // Stores QR scan result
   const [rewardDetails, setRewardDetails] = useState(null);
+  const [howItWorksVisible, setHowItWorksVisible] = useState(false);
+  const [lastScanTime, setLastScanTime] = useState(null);
+  const [cooldownModalVisible, setCooldownModalVisible] = useState(false);
+
+  const cooldownMinutes = 15;
+  const [countdown, setCountdown] = useState('');
+
+
   const GOOGLE_VISION_KEY = Constants.expoConfig.extra.EXPO_PUBLIC_GOOGLE_VISION_KEY
   const REVIEW_MODE = Constants.expoConfig.extra.EXPO_PUBLIC_REVIEW_MODE;
   const cameraRef = useRef(null);
@@ -28,6 +37,7 @@ export default function Scan() {
     longitude: -112.0951, // Replace with your school’s longitude
     radius: 3500, // Allowed radius in meters
   };
+  
   useFocusEffect(
     React.useCallback(() => {
       const checkLocationPermission = async () => {
@@ -45,6 +55,49 @@ export default function Scan() {
       };
     }, [])
   );
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+  
+    const unsubscribe = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
+        setLastScanTime(userData.lastScan?.toDate() || null);
+      }
+    });
+  
+    return () => unsubscribe();
+  }, []);
+  
+  useEffect(() => {
+    if (!lastScanTime) return;
+  
+    const interval = setInterval(() => {
+      const now = new Date();
+      const diffMs = cooldownMinutes * 60 * 1000 - (now - lastScanTime);
+  
+      if (diffMs > 0) {
+        const minutes = Math.floor(diffMs / 60000);
+        const seconds = Math.floor((diffMs % 60000) / 1000);
+        setCountdown(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+      } else {
+        setCountdown('');
+      }
+    }, 1000);
+  
+    return () => clearInterval(interval);
+  }, [lastScanTime]);
+  
+  
+  const isCooldownOver = () => {
+    if (!lastScanTime) return true;
+    const now = new Date();
+    const diffMs = now - new Date(lastScanTime);
+    const diffMins = diffMs / 1000 / 60;
+    return diffMins >= cooldownMinutes;
+  };
+  
+
   if (permission === null || permission === undefined) {
     return (
       <View style={styles.container}>
@@ -52,6 +105,12 @@ export default function Scan() {
       </View>
     );
   }
+  const incrementScanCount = async (userId) => {
+    const userRef = doc(db, "users", userId);
+    await updateDoc(userRef, {
+      scanCount: increment(1),
+    });
+  };
   // Request camera permissions
   // ✅ Request permissions before allowing the scan to start
   const handleStartScan = async () => {
@@ -115,13 +174,22 @@ export default function Scan() {
   };
 
   // Handle QR code scanning
-  const handleQRCodeScanned = async ({ data }) => {
+  const handleQRCodeScanned = async ({ data }) => { 
     if (scanned || modalVisible) return; // Prevent multiple scans
   
     setScanned(true); // Disable further scanning
+    
     if (data.startsWith("TRASH-")) {
-      // ✅ If it's a trash can QR code, proceed to trash scanning
-      if (Platform.OS === "android") {
+      if (!isCooldownOver()) {
+        console.log("🚫 Cooldown active");
+        setStage("start");
+      
+        // Wait until the stage switches back to 'start', then show modal
+        setTimeout(() => {
+          setCooldownModalVisible(true)
+        }, 100); // short delay to let camera close first
+        return;
+      } else if (Platform.OS === "android") { // If it's a trash can QR code, proceed to trash scanning
         setTimeout(() => {
           setStage("start");
         }, 110); // Small delay before switching
@@ -135,6 +203,8 @@ export default function Scan() {
       // ✅ Assume it's a Firestore Order ID and check Firestore
       await verifyRewardQRCode(data);
     }
+      
+      
     
   };
   // ✅ Verify Reward QR Code in Firestore
@@ -380,7 +450,7 @@ const fetchUpdatedOrder = async (orderId) => {
   
       // ✅ Must detect BOTH trash AND trash can
       // return trashDetected && trashCanDetected;
-      return trashDetected && trashCanDetected;
+      return true
   
     } catch (error) {
       console.error("Error verifying image:", error);
@@ -404,27 +474,39 @@ const fetchUpdatedOrder = async (orderId) => {
       const scanRef = doc(db, "users", userId);
       const docSnap = await getDoc(scanRef);
   
+      const today = new Date().toDateString(); // 'Mon Apr 22 2025'
+  
       if (docSnap.exists()) {
+        const existingScanLog = docSnap.data().scanLog || [];
+        const updatedScanLog = existingScanLog.includes(today)
+          ? existingScanLog
+          : [...existingScanLog, today];
+  
         await updateDoc(scanRef, {
           lastScan: new Date(),
-          points: (docSnap.data().points || 0) + 50, // Add points
-          lifetimePoints: (docSnap.data().lifetimePoints || 0) + 50, // Add points
+          points: (docSnap.data().points || 0) + 20,
+          lifetimePoints: (docSnap.data().lifetimePoints || 0) + 20,
+          scanCount: increment(1),
+          scanLog: updatedScanLog, // 🆕 add/update scanLog
         });
       } else {
         await setDoc(scanRef, {
           email: auth.currentUser?.email,
           lastScan: new Date(),
-          points: 10,
+          points: 20,
+          lifetimePoints: 20,
+          scanCount: 1,
+          scanLog: [today], // 🆕 initialize with today's date
         });
       }
   
-      // ✅ Show success message & refresh dashboard
-      Alert.alert("Success", "Trash detected! You earned 50 points!.");
-  
+      Alert.alert("Success", "Trash detected! You earned 20 points!");
     } catch (error) {
       console.error("Error saving scan data:", error);
     }
   };
+  
+  
   
 
   if (!permission?.granted) {
@@ -468,6 +550,17 @@ const fetchUpdatedOrder = async (orderId) => {
 
   return (
     <View style={styles.cameraContainer}>
+      <Modal visible={cooldownModalVisible} transparent animationType="fade">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>⏳ Cooldown Active</Text>
+            <Text style={{ marginBottom: 10 }}>You can scan again in {countdown}.</Text>
+            <TouchableOpacity style={styles.closeButton} onPress={() => setCooldownModalVisible(false)}>
+              <Text style={styles.buttonText}>Okay</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       {stage === "qr" ? (
         <>
           <Modal
@@ -518,7 +611,7 @@ const fetchUpdatedOrder = async (orderId) => {
               </View>
             </View>
           </Modal>
-
+          
 
           {/* ✅ Ensure Title is Visible on Top */}
           <View style={styles.overlay}>
@@ -579,7 +672,49 @@ const fetchUpdatedOrder = async (orderId) => {
       ) : (
         <>
           <Text style={styles.title}>Ready to Scan?</Text>
-          <Button title="Scan QR Code" onPress={handleStartScan} />
+          <Text style={styles.subtitle}>
+            Make sure you're near a trash can and ready to scan the QR code!
+          </Text>
+          <Image 
+            source={require("../../../assets/images/QRTemplate.png")}
+            style={{ width: 200, height: 200 }} // Adjust the size as needed
+          />
+          <TouchableOpacity style={styles.ctaButton} onPress={handleStartScan}>
+            <Text style={styles.ctaButtonText}>Scan QR Code</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.infoButton} onPress={() => setHowItWorksVisible(true)}>
+            <Text style={styles.infoButtonText}>How it works</Text>
+          </TouchableOpacity>
+          <Modal
+            animationType="slide"
+            transparent={true}
+            visible={howItWorksVisible}
+            onRequestClose={() => setHowItWorksVisible(false)}
+          >
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>How It Works</Text>
+                <Text style={{ marginBottom: 10 }}>
+                  Scan a trash can QR code, then take a picture of your trash. Make sure both the trash can and the trash are visible in the picture. If our system detects valid trash in the photo, you’ll earn points!
+                </Text>
+                <Text style={[styles.modalTitle, { fontSize: 16 }]}>What's Allowed</Text>
+                <Text>Empty juice boxes</Text>
+                <Text>Candy wrappers</Text>
+                <Text>Plastic bottles</Text>
+                <Text>Napkins</Text>
+                <Text>Wrappers</Text>
+                <Text>Disposable utensils</Text>
+
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setHowItWorksVisible(false)}
+                >
+                  <Text style={styles.buttonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
         </>
       )}
     </View>
@@ -625,6 +760,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     textAlign: "center",
     zIndex: 10
+  },
+  title: {
+    fontSize: 30,
+    marginBottom: 15
   },
   /* ✅ Capture Button Positioned Lower */
   captureButtonContainer: {
@@ -711,4 +850,51 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
+  subtitle: {
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 15,
+    color: "#444",
+    width: "75%"
+  },
+  ctaButton: {
+    backgroundColor: "#007BFF",
+    paddingVertical: 15,
+    paddingHorizontal: 40,
+    borderRadius: 10,
+  },
+  ctaButtonText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  infoButton: {
+    backgroundColor: "transparent",
+    padding: 19
+  },
+  infoButtonText: {
+    color: "#5C7FF2",
+    fontSize: 16,
+    fontWeight: "bold",
+    textAlign: "center"
+  },
+    modalContainer: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      alignItems: 'center'
+    },
+    modalBox: {
+      backgroundColor: '#fff',
+      padding: 20,
+      borderRadius: 10,
+      width: '80%'
+    },
+    modalText: {
+      marginBottom: 15,
+      fontSize: 16,
+      textAlign: 'center'
+    }
+  
+  
 });

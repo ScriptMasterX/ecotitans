@@ -17,7 +17,10 @@ export default function AuthScreen() {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [showResetPassword, setShowResetPassword] = useState<boolean>(false); // Toggle for Reset Password
-
+  function getRandomNumber() {
+    return Math.floor(Math.random() * 9); // 0 to 8
+  }
+  
   const handleSignUp = async (): Promise<void> => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -40,7 +43,10 @@ export default function AuthScreen() {
           points: 0,          // 🔥 Current Points
           lifetimePoints: 0,  // 🔥 Total Earned Points
           lastScan: null,
-          isAdmin: false
+          isAdmin: false,
+          scanCount: 0,
+          avatarIndex: getRandomNumber(),
+          scanLog: []
         });
   
         console.log("✅ Firestore document created for new user");
