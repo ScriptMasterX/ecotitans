@@ -22,6 +22,14 @@ export default function AuthScreen() {
   }
   
   const handleSignUp = async (): Promise<void> => {
+    if (!email.endsWith("guhsdaz.org")) {
+      Alert.alert(
+        "Restricted Email",
+        "You must use a @guhsdaz.org email to sign up."
+      );
+      return;
+    }
+  
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -34,31 +42,31 @@ export default function AuthScreen() {
           "A verification email has been sent. Please verify before logging in."
         );
   
-        // ✅ Create Firestore document for new user
         const userRef = doc(db, "users", user.uid);
         await setDoc(userRef, {
-          name: `Guest ${Math.floor(100000 + Math.random() * 900000)}`, // Random Guest Name
+          name: `Guest ${Math.floor(100000 + Math.random() * 900000)}`,
           email: user.email,
-          bio: "Add a bio to get started!",
-          points: 0,          // 🔥 Current Points
-          lifetimePoints: 0,  // 🔥 Total Earned Points
+          points: 0,
+          lifetimePoints: 0,
           lastScan: null,
           isAdmin: false,
           scanCount: 0,
           avatarIndex: getRandomNumber(),
-          scanLog: []
+          scanLog: [],
+          claimedMissions: [],
         });
   
         console.log("✅ Firestore document created for new user");
   
-        await auth.signOut(); // ✅ Log them out after signup
-        setIsLogin(true); // Switch to login screen
+        await auth.signOut();
+        setIsLogin(true);
       }
     } catch (error: any) {
       console.error("Sign-up error:", error.message);
       Alert.alert("Sign-Up Error", error.message);
     }
   };
+  
   
   const handleLogin = async (): Promise<void> => {
     try {

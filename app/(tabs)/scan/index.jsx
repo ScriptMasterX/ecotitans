@@ -9,6 +9,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { useFocusEffect } from "expo-router";
 import Constants from "expo-constants";
 import { Platform, Linking } from "react-native";
+import { fetchReviewMode } from "../../firebaseConfig";
 
 
 export default function Scan() {
@@ -28,16 +29,23 @@ export default function Scan() {
 
 
   const GOOGLE_VISION_KEY = Constants.expoConfig.extra.EXPO_PUBLIC_GOOGLE_VISION_KEY
-  const REVIEW_MODE = Constants.expoConfig.extra.EXPO_PUBLIC_REVIEW_MODE;
   const cameraRef = useRef(null);
   const [locationDeniedPermanently, setLocationDeniedPermanently] = useState(false);
   
   const SCHOOL_LOCATION = {
     latitude: 33.6086,  // Replace with your school’s latitude
     longitude: -112.0951, // Replace with your school’s longitude
-    radius: 3500, // Allowed radius in meters
+    radius: 900, // Allowed radius in meters
   };
-  
+  const [REVIEW_MODE, setReviewMode] = useState(false);
+
+  useEffect(() => {
+    const getReviewMode = async () => {
+      const mode = await fetchReviewMode();
+      setReviewMode(mode);
+    };
+    getReviewMode();
+  }, []);
   useFocusEffect(
     React.useCallback(() => {
       const checkLocationPermission = async () => {
@@ -169,8 +177,8 @@ export default function Scan() {
     const now = new Date();
     const day = now.getDay();
     const hours = now.getHours();
-    // return day >= 1 && day <= 6 && hours >= 7 && hours < 23; // 11AM - 1PM
-    return true;
+    return day >= 1 && day <= 6 && hours >= 7 && hours < 23; // 11AM - 1PM
+    // return true;
   };
 
   // Handle QR code scanning
@@ -272,33 +280,53 @@ export default function Scan() {
 // ✅ Mark Order as Redeemed
 const confirmRewardRedemption = async () => {
   try {
-      console.log("🔄 Starting reward redemption process...");
+    console.log("🔄 Starting reward redemption process...");
 
-      // ✅ Reference the order document
-      const orderRef = doc(db, "orders", rewardDetails.orderId);
+    const orderRef = doc(db, "orders", rewardDetails.orderId);
 
-      // ✅ Update the order status to "Redeemed"
-      await updateDoc(orderRef, { status: "Redeemed" });
+    await updateDoc(orderRef, { status: "Redeemed" });
 
-      console.log(`✅ Order ${rewardDetails.orderId} marked as Redeemed in Firestore.`);
+    console.log(`Order ${rewardDetails.orderId} marked as Redeemed in Firestore.`);
 
-      Alert.alert(
-          "✅ Redemption Confirmed", 
-          `The reward "${rewardDetails.rewardName}" has been successfully redeemed!`
-      );
+    // 🔁 NEW: Update monthly redemption counters
+    const rewardKey = getRewardKeyFromName(rewardDetails.rewardName);
+    if (rewardKey) {
+      const redemptionRef = doc(db, "monthlyRedemptions", "currentMonth");
+      await updateDoc(redemptionRef, {
+        [rewardKey]: increment(1),
+      });
+      console.log(`Incremented ${rewardKey} in monthlyRedemptions`);
+    } else {
+      console.warn("Unrecognized reward name for monthly tracking.");
+    }
 
-      setScanned(false);
-      setModalVisible(false);
-      setStage("start");
+    Alert.alert(
+      "Redemption Confirmed",
+      `The reward "${rewardDetails.rewardName}" has been successfully redeemed!`
+    );
 
-      // ✅ Fetch updated order details from Firestore after redemption
-      fetchUpdatedOrder(rewardDetails.orderId);
+    setScanned(false);
+    setModalVisible(false);
+    setStage("start");
+
+    fetchUpdatedOrder(rewardDetails.orderId);
 
   } catch (error) {
-      console.error("❌ Error confirming redemption:", error);
-      Alert.alert("❌ Error", "Could not confirm redemption.");
+    console.error("Error confirming redemption:", error);
+    Alert.alert("Error", "Could not confirm redemption.");
   }
 };
+
+const getRewardKeyFromName = (rewardName) => {
+  if (rewardName.includes("$1")) return "one";
+  if (rewardName.includes("$3")) return "three";
+  if (rewardName.includes("$5")) return "five";
+  if (rewardName.includes("$10")) return "ten";
+  if (rewardName.includes("$20")) return "twenty";
+  return null;
+};
+
+
 
 const fetchUpdatedOrder = async (orderId) => {
   try {
@@ -337,9 +365,16 @@ const fetchUpdatedOrder = async (orderId) => {
       const photoData = await cameraRef.current.takePictureAsync();
 
       const isAtSchool = await checkIfAtSchool();
+      const isSchoolDay = await isSchoolDayAndTime();
       if (!isAtSchool) {
           Alert.alert("Location Restriction", "You must be at school to take a photo.");
           setStage("start");
+          setIsProcessing(false);
+          return;
+      } else if (!isSchoolDay) {
+          Alert.alert("Time Restriction", "You can only take a photo during school days from 11am-1pm.");
+          setStage("start");
+          setIsProcessing(false);
           return;
       }
       
@@ -378,7 +413,7 @@ const fetchUpdatedOrder = async (orderId) => {
   
   const checkIfAtSchool = async () => {
     if (REVIEW_MODE) {
-      console.log("🚨 Apple Review Mode: Skipping location check");
+      console.log("🚨 Review Mode Active: bypassing location check");
       return true;
     }
   
@@ -449,8 +484,8 @@ const fetchUpdatedOrder = async (orderId) => {
       console.log("♻️ Trash Can detected:", trashCanDetected);
   
       // ✅ Must detect BOTH trash AND trash can
-      // return trashDetected && trashCanDetected;
-      return true
+      return trashDetected && trashCanDetected;
+      // return true
   
     } catch (error) {
       console.error("Error verifying image:", error);
@@ -648,7 +683,10 @@ const fetchUpdatedOrder = async (orderId) => {
           {/* ✅ Capture Trash Image Button in the Center */}
           <TouchableOpacity
             style={styles.captureButtonContainer}
-            onPress={isProcessing ? console.log("Processing...") : handleCapturePhoto}
+            onPress={() => {
+              if (!isProcessing) handleCapturePhoto();
+            }}
+            
           >
             <Text
               style={{

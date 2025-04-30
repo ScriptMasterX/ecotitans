@@ -14,5 +14,5 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-, "app/(tabs)/scan/index.jsx", "app/(tabs)/profile/index.jsx", "app/(tabs)/rewards/index.jsx", "app/(tabs)/_layout.jsx", "app/(tabs)/dashboard/index.jsx", "app/(tabs)/leaderboard/index.jsx"  ]
+, "app/(tabs)/scan/index.jsx", "app/(tabs)/profile/index.jsx", "app/(tabs)/rewards/index.jsx", "app/(tabs)/_layout.jsx", "app/(tabs)/dashboard/index.jsx", "app/(tabs)/leaderboard/index.jsx", "app/(tabs)/admin/index.jsx"  ]
 }

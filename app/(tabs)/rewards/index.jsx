@@ -103,7 +103,10 @@ const RewardsTab = ({ points, fetchUserPoints }) => {
                 {item.name} ({item.cost} Points)
               </Text>
               <Text>{item.description}</Text>
-              <Button title="Redeem" onPress={() => redeemReward(item)} />
+              <TouchableOpacity style={styles.redeemButton} onPress={() => redeemReward(item)}>
+                <Text style={styles.buttonText}>Redeem</Text>
+              </TouchableOpacity>
+
             </View>
           )}
         />
@@ -181,7 +184,10 @@ const OrderHistoryTab = () => {
               <Text>Date: {item.timestamp ? new Date(item.timestamp).toLocaleString() : "N/A"}</Text>
 
               {/* ✅ View QR Code Button */}
-              <Button title="View QR Code" onPress={() => openQRCodeModal(item)} />
+              <TouchableOpacity style={styles.viewQRButton} onPress={() => openQRCodeModal(item)}>
+                <Text style={styles.buttonText}>View QR Code</Text>
+              </TouchableOpacity>
+
             </View>
           )}
         />
@@ -319,5 +325,23 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 10 },
   warningText: { fontSize: 14, color: "red", textAlign: "center", marginTop: 10 },
   closeButton: { backgroundColor: "#007BFF", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 5, marginTop: 15 },
-  buttonText: { color: "white", fontSize: 16 },
+  buttonText: { color: "white", fontSize: 16, fontWeight: "bold" },
+  redeemButton: {
+    backgroundColor: "#007BFF", // same blue as Logout
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 10,
+  },  
+  viewQRButton: {
+    backgroundColor: "#6366F1", // indigo
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  
+  
 });

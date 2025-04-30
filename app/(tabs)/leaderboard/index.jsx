@@ -122,19 +122,21 @@ export default function Leaderboard() {
                   <Image
                     source={avatarUri}
                     style={{
-                      width: 45,
-                      height: 45,
-                      borderRadius: 22.5,
+                      width: 60,
+                      height: 60,
+                      borderRadius: 50,
                       marginRight: 10,
                       borderWidth: 2,
                       borderColor: borderColor,
                     }}
                   />
           
-                  <View>
-                    <Text style={styles.username}>{item.name}</Text>
-                    <Text style={styles.points}>{item.lifetimePoints} Points</Text>
-                  </View>
+                <View>
+                  <Text style={styles.username}>{item.name}</Text>
+                  <Text style={styles.userTag}>@{item.email?.split("@")[0]}</Text>
+                  <Text style={styles.points}>{item.lifetimePoints} Points</Text>
+                </View>
+
                 </View>
           
                 {/* Rank: icon for top 3, number otherwise */}
@@ -229,6 +231,10 @@ const styles = StyleSheet.create({
   rankLeft: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  userTag: {
+    fontSize: 14,
+    color: "#666",
   },
   
 });

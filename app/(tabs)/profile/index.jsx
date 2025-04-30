@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback  } from "react";
 import { View, Text, TextInput, Button, StyleSheet, Alert, Linking, Image, FlatList, TouchableOpacity, Modal, KeyboardAvoidingView, ScrollView, Platform } from "react-native";
 import { auth, db } from "../../firebaseConfig";
 import { onAuthStateChanged, deleteUser } from "firebase/auth";
-import { doc, getDoc, getDocs, updateDoc, setDoc, deleteDoc, collection, query, where } from "firebase/firestore";
+import { doc, getDoc, getDocs, updateDoc, setDoc, deleteDoc, collection, query, where, arrayUnion, increment } from "firebase/firestore";
 import { useFocusEffect } from '@react-navigation/native';
 
 import { useRouter } from "expo-router";
@@ -23,13 +23,13 @@ export default function Profile() {
   const [user, setUser] = useState(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [bio, setBio] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [avatar, setAvatar] = useState(presetAvatars[0]);
   const [avatarModalVisible, setAvatarModalVisible] = useState(false);
   const [userScans, setUserScans] = useState([]);
   const Tab = createMaterialTopTabNavigator();
   const [scanCount, setScanCount] = useState(0);
+  const [claimedMissions, setClaimedMissions] = useState([]);
 
   useEffect(() => {
     
@@ -82,70 +82,129 @@ export default function Profile() {
       if (userDoc.exists()) {
         const data = userDoc.data();
         setName(data.name || "");
-        setBio(data.bio || "");
         setEmail(data.email || auth.currentUser.email || "");
         setAvatar(presetAvatars[data.avatarIndex] || presetAvatars[0]);
-        setScanCount(data.scanCount || 0); // 🆕 get scanCount from Firestore
+        setScanCount(data.scanCount || 0);
+        setClaimedMissions(data.claimedMissions || []); // ✅ New
       } else {
         const randomIndex = Math.floor(Math.random() * presetAvatars.length);
         await setDoc(userDocRef, {
           name: generateUserName(),
           email: auth.currentUser.email,
-          bio: "Add a bio to get started!",
           avatarIndex: randomIndex,
-          scanCount: 0 // 🆕 initialize to 0
+          scanCount: 0,
+          claimedMissions: [], // ✅ Initialize new field
         });
         setName(`User ${randomIndex}`);
-        setBio("Add a bio to get started!");
         setEmail(auth.currentUser.email);
         setAvatar(presetAvatars[randomIndex]);
-        setScanCount(0); // 🆕
+        setScanCount(0);
+        setClaimedMissions([]); // ✅ Ensure state is set
       }
     } catch (error) {
       console.error("Error fetching profile data:", error);
       Alert.alert("Error", "Could not load profile data.");
     }
   };
+  
 
   function generateUserName() {
     const randomNumbers = Math.floor(100000 + Math.random() * 900000);
     return `User ${randomNumbers}`;
   }
-  const AchievementsTab = () => {
-  const achievements = computeAchievements();
+  const MissionsTab = () => {
+    const missions = computeMissions().sort((a, b) => {
+      if (a.claimed && !b.claimed) return 1;
+      if (!a.claimed && b.claimed) return -1;
+      return 0;
+    });
+    
+  
+    const claimMission = async (missionId, rewardPoints) => {
+      if (!user) return;
+  
+      try {
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, {
+          claimedMissions: arrayUnion(missionId),
+          points: increment(rewardPoints),
+          lifetimePoints: increment(rewardPoints),
+        });
+  
+        Alert.alert("✅ Mission Claimed", `You earned ${rewardPoints} points!`);
+        fetchProfile(user.uid); // Refresh profile data
+      } catch (error) {
+        console.error("Error claiming mission:", error);
+        Alert.alert("Error", "Could not claim mission.");
+      }
+    };
+  
+    return (
+      <View style={{ padding: 20 }}>
+        <Text style={{ fontWeight: "bold", fontSize: 22, marginBottom: 15, textAlign: "center" }}>
+          Missions
+        </Text>
+        <FlatList
+          data={missions}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => {
+            const percent = Math.min(item.progress / item.goal, 1);
+            const canClaim = item.progress >= item.goal && !item.claimed;
+  
+            return (
+              <View style={styles.achievementCard}>
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={styles.achievementTitle}>{item.title}</Text>
+                  <Text style={styles.achievementDesc}>{item.description}</Text>
+                </View>
 
-  return (
-    <View style={{ padding: 20 }}>
-      <Text style={{ fontWeight: "bold", fontSize: 22, marginBottom: 15 }}>
-        🎯 Achievements
-      </Text>
-      <FlatList
-        data={achievements}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => {
-          const isCompleted = item.progress >= item.goal;
-          const percent = Math.min(item.progress / item.goal, 1);
+                <ProgressBar
+                  progress={Math.min(item.progress / item.goal, 1)}
+                  color={item.claimed ? "#22c55e" : "#3b82f6"}
+                  style={styles.progressBar}
+                />
 
-          return (
-            <View style={styles.achievementCard}>
-              <Text style={styles.achievementTitle}>{item.title}</Text>
-              <Text style={styles.achievementDesc}>{item.description}</Text>
-              <ProgressBar
-                progress={percent}
-                color={isCompleted ? "#22c55e" : "#3b82f6"}
-                style={{ height: 8, borderRadius: 4 }}
-              />
-              <Text style={styles.achievementProgress}>
-                {item.progress}/{item.goal} {isCompleted ? "✅ Completed" : ""}
-              </Text>
-            </View>
-          );
-        }}
-      />
-    </View>
-  );
-};
+                <View style={styles.missionFooter}>
+                  <Text style={styles.progressText}>
+                    {item.progress}/{item.goal}
+                    {item.claimed ? " ✅ Claimed" : item.progress >= item.goal ? " 🎉 Claim now" : ""}
+                  </Text>
+                  <Text style={styles.rewardText}>🎁 {item.rewardPoints} pts</Text>
+                </View>
 
+                {item.progress >= item.goal && !item.claimed && (
+                  <TouchableOpacity style={styles.claimButton} onPress={() => claimMission(item.id, item.rewardPoints)}>
+                    <Text style={styles.buttonText}>Claim</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+            );
+          }}
+        />
+      </View>
+    );
+  };
+  
+  const claimMission = async (missionId, rewardPoints) => {
+    if (!user) return;
+
+    try {
+      const userDocRef = doc(db, "users", user.uid);
+      await updateDoc(userDocRef, {
+        claimedMissions: arrayUnion(missionId),
+        points: increment(rewardPoints),
+        lifetimePoints: increment(rewardPoints),
+      });
+
+      Alert.alert("✅ Mission Claimed", `You earned ${rewardPoints} points!`);
+      // Optionally refetch profile data to update points and claimed missions in state
+      fetchProfile(user.uid);
+    } catch (error) {
+      console.error("Error claiming mission:", error);
+      Alert.alert("Error", "Could not claim mission.");
+    }
+  };
   const updateAvatar = async (selectedAvatar) => {
     try {
       const avatarIndex = presetAvatars.indexOf(selectedAvatar);
@@ -170,7 +229,7 @@ export default function Profile() {
       if (user) {
         const userDocRef = doc(db, "users", user.uid);
         const avatarIndex = presetAvatars.indexOf(avatar);
-        await updateDoc(userDocRef, { name, bio, email, avatarIndex });
+        await updateDoc(userDocRef, { name, email, avatarIndex });
         Alert.alert("Success", "Your profile has been updated.");
         setIsEditing(false);
       }
@@ -234,10 +293,8 @@ export default function Profile() {
   const settingsProps = useMemo(() => ({
     name,
     email,
-    bio,
     isEditing,
     setName,
-    setBio,
     saveProfile,
     handleLogout,
     handleDeleteAccount,
@@ -245,59 +302,113 @@ export default function Profile() {
   }), [
     name,
     email,
-    bio,
     isEditing,
     setName,
-    setBio,
     saveProfile,
     handleLogout,
     handleDeleteAccount,
     setIsEditing,
   ]);
-  const computeAchievements = () => {
-    const days = [...new Set(
-      userScans
-        .map(scan => {
-          const ts = scan.timestamp;
-          if (!ts) return null;
-          if (ts.toDate) return ts.toDate().toDateString();
-          if (typeof ts === "string" || typeof ts === "number") return new Date(ts).toDateString();
-          return null;
-        })
-        .filter(Boolean)
-    )];
+  const computeMissions = () => {
+    const days = [...new Set(userScans.map(d => new Date(d).toDateString()))];
   
     return [
       {
-        id: "1",
+        id: "milkyway",
         title: "🌌 Milkyway",
         description: "Reach 5 scans",
-        progress: scanCount, // ✅ using scanCount
+        progress: scanCount,
         goal: 5,
+        rewardPoints: 50,
+        claimed: claimedMissions.includes("milkyway"),
       },
       {
-        id: "2",
+        id: "trashTrooper",
         title: "🚀 Trash Trooper",
         description: "Scan trash 7 days in a row",
         progress: calculateStreak(days),
         goal: 7,
+        rewardPoints: 75,
+        claimed: claimedMissions.includes("trashTrooper"),
       },
       {
-        id: "3",
+        id: "streakStarter",
         title: "🔥 Streak Starter",
         description: "Scan trash 3 days in a row",
         progress: calculateStreak(days),
         goal: 3,
+        rewardPoints: 30,
+        claimed: claimedMissions.includes("streakStarter"),
       },
       {
-        id: "4",
+        id: "diamondRecycler",
         title: "💎 Diamond Recycler",
         description: "Scan 100 trash items",
-        progress: scanCount, // ✅ using scanCount
+        progress: scanCount,
         goal: 100,
+        rewardPoints: 600,
+        claimed: claimedMissions.includes("diamondRecycler"),
       },
+      {
+        id: "firstScan",
+        title: "🧪 First Scan",
+        description: "Submit your very first trash scan",
+        progress: scanCount,
+        goal: 1,
+        rewardPoints: 10,
+        claimed: claimedMissions.includes("firstScan"),
+      },
+      {
+        id: "weeklyHero",
+        title: "📅 Weekly Hero",
+        description: "Scan trash on 5 different days in one week",
+        progress: days.length,
+        goal: 5,
+        rewardPoints: 100,
+        claimed: claimedMissions.includes("weeklyHero"),
+      },
+      {
+        id: "doubleDigits",
+        title: "🔟 Double Digits",
+        description: "Reach 10 total trash scans",
+        progress: scanCount,
+        goal: 10,
+        rewardPoints: 20,
+        claimed: claimedMissions.includes("doubleDigits"),
+      },
+      {
+        id: "streakMaster",
+        title: "🔥🔥🔥 Streak Master",
+        description: "Maintain a 10-day scan streak",
+        progress: calculateStreak(days),
+        goal: 10,
+        rewardPoints: 150,
+        claimed: claimedMissions.includes("streakMaster"),
+      },
+      {
+        id: "schoolSaver",
+        title: "🏫 School Saver",
+        description: "Scan trash on 3 Mondays",
+        progress: days.filter(d => new Date(d).getDay() === 1).length,
+        goal: 3,
+        rewardPoints: 75,
+        claimed: claimedMissions.includes("schoolSaver"),
+      },
+      {
+        id: "legendaryRecycler",
+        title: "🏆 Legendary Recycler",
+        description: "Reach 200 total scans",
+        progress: scanCount,
+        goal: 200,
+        rewardPoints: 1000,
+        claimed: claimedMissions.includes("legendaryRecycler"),
+      }
+      
     ];
   };
+  
+  
+  
   
   
   // Helper to check streaks
@@ -328,7 +439,7 @@ export default function Profile() {
         <Text style={styles.title}>{name}</Text>
 
         <Tab.Navigator>
-          <Tab.Screen name="Achievements" component={AchievementsTab} />
+          <Tab.Screen name="Missions" component={MissionsTab} />
           <Tab.Screen name="Settings" children={() => <SettingsTab {...settingsProps} />} />
 
         </Tab.Navigator>
@@ -480,34 +591,106 @@ const styles = StyleSheet.create({
     padding: 3,
   },
   achievementCard: {
-    backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
+    backgroundColor: "#F9FAFB", // Softer gray card
+    borderRadius: 12,
+    padding: 18,
+    marginBottom: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#D1D5DB", // light gray border
   },
   achievementTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  achievementDesc: {
+    fontSize: 14,
+    color: "#4B5563",
+    marginBottom: 10,
+  },
+  progressBar: {
+    height: 8,
+    borderRadius: 8,
+    backgroundColor: "#E5E7EB",
+  },
+  missionFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  progressText: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  rewardText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  claimButton: {
+    backgroundColor: "#3B82F6", // Blue
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 14,
+  },
+  buttonText: {
+    color: "#fff",
     fontWeight: "bold",
     fontSize: 16,
   },
-  achievementDesc: {
-    color: "#555",
-    marginVertical: 4,
-  },
-  achievementProgress: {
-    fontSize: 12,
-    color: "#888",
-    marginTop: 4,
+  
+  
+  saveButton: {
+    backgroundColor: "#4FD1C5",
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 10,
   },
   
+  logoutButton: {
+    backgroundColor: "#3B82F6",
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  
+  deleteButton: {
+    backgroundColor: "#EF4444",
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  
+  buttonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  buttonText: { color: "white", fontSize: 16, fontWeight: "bold" },
+  claimButton: {
+    backgroundColor: "#007BFF",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 10,
+  },  
 });
 const SettingsTab = ({
-  name, email, bio, isEditing,
-  setName, setBio, saveProfile,
+  name, email, isEditing,
+  setName, saveProfile,
   handleLogout, handleDeleteAccount, setIsEditing
 }) => (
   <KeyboardAvoidingView
@@ -518,30 +701,39 @@ const SettingsTab = ({
     <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="always">
       <Text style={styles.label}>Name</Text>
       <TextInput
-        style={[styles.input, isEditing && styles.editable]}
+        style={[styles.input, styles.editable]}
         value={name}
-        onChangeText={setName}
-        editable={isEditing}
+        onChangeText={(text) => {
+          setName(text);
+          setIsEditing(true);
+        }}
+        maxLength={20}
+        editable={true}
       />
+      <Text style={{ alignSelf: "flex-end", marginRight: 10 }}>{name.length}/20</Text>
+
       <Text style={styles.label}>Email</Text>
       <TextInput style={[styles.input, styles.disabledInput]} value={email} editable={false} />
-      <Text style={styles.label}>Bio</Text>
-      <TextInput
-        style={[styles.input, isEditing && styles.editable]}
-        value={bio}
-        onChangeText={setBio}
-        editable={isEditing}
-        multiline
-      />
       <View style={styles.buttonContainer}>
-        {isEditing ? (
-          <Button title="Save Profile" onPress={saveProfile} />
-        ) : (
-          <Button title="Edit Profile" onPress={() => setIsEditing(true)} />
+        {isEditing && (
+          <TouchableOpacity style={styles.saveButton} onPress={saveProfile}>
+            <Text style={styles.buttonText}>Save Profile</Text>
+          </TouchableOpacity>
         )}
       </View>
-      <View style={styles.buttonContainer}><Button title="Logout" onPress={handleLogout} /></View>
-      <View style={styles.buttonContainer}><Button color="red" title="Delete Account" onPress={handleDeleteAccount} /></View>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.buttonText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteAccount}>
+          <Text style={styles.buttonText}>Delete Account</Text>
+        </TouchableOpacity>
+      </View>
+
     </ScrollView>
   </KeyboardAvoidingView>
 );

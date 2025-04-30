@@ -1,10 +1,9 @@
-import "react-native-get-random-values"; // Ensures compatibility with Firebase
+import "react-native-get-random-values";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { initializeAuth, getReactNativePersistence } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getFirestore } from "firebase/firestore"; // Firestore
+import { getFirestore, doc, getDoc } from "firebase/firestore"; // ⬅️ Include doc/getDoc
 
-// Your Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCdwII3wVUJRBcAAna4zhikxjTWTRzHsas",
   authDomain: "trash-incentivizer.firebaseapp.com",
@@ -14,18 +13,26 @@ const firebaseConfig = {
   appId: "1:133867179822:web:2905c172e9b00e5fecf4bf",
 };
 
-// Initialize Firebase app (ensure it's not already initialized to avoid errors)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firebase Auth with AsyncStorage persistence
 const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(AsyncStorage),
 });
 
-const db = getFirestore(app); // Firestore instance
+const db = getFirestore(app);
+
+// ✅ Utility to dynamically fetch Review Mode
+export const fetchReviewMode = async () => {
+  try {
+    const configDoc = await getDoc(doc(db, "config", "appFlags"));
+    return configDoc.exists() && configDoc.data()?.reviewMode === true;
+  } catch (error) {
+    console.error("🔥 Error checking review mode:", error);
+    return false;
+  }
+};
 
 export { auth, db };
 export default app;
-
 
 
