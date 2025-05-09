@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback  } from "react";
 import { View, Text, TextInput, Button, StyleSheet, Alert, Linking, Image, FlatList, TouchableOpacity, Modal, KeyboardAvoidingView, ScrollView, Platform } from "react-native";
-import { auth, db } from "../../firebaseConfig";
+import { auth, db } from "../../../lib/_firebaseConfig";
 import { onAuthStateChanged, deleteUser } from "firebase/auth";
 import { doc, getDoc, getDocs, updateDoc, setDoc, deleteDoc, collection, query, where, arrayUnion, increment } from "firebase/firestore";
 import { useFocusEffect } from '@react-navigation/native';

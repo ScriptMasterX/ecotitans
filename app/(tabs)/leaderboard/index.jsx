@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, FlatList, Image } from "react-native";
 import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { useFocusEffect } from "expo-router";
-import { db, auth } from "../../firebaseConfig";
+import { db, auth } from "../../../lib/_firebaseConfig";
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 

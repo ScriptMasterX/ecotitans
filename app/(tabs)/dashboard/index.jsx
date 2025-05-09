@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, FlatList, Image, ScrollView } from "react-native";
-import { auth, db } from "../../firebaseConfig";
+import { auth, db } from "../../../lib/_firebaseConfig";
 import { doc, onSnapshot, collection, query, where, orderBy, getDocs } from "firebase/firestore";
 import { ProgressBar } from "react-native-paper";
 

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { View, Text, StyleSheet, Alert, Button, Modal, TouchableOpacity, Image } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { auth, db } from "../../firebaseConfig";
+import { auth, db } from "../../../lib/_firebaseConfig";
 import { doc, setDoc, updateDoc, getDoc, onSnapshot, increment } from "firebase/firestore";
 
 import * as Location from "expo-location";
@@ -9,7 +9,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { useFocusEffect } from "expo-router";
 import Constants from "expo-constants";
 import { Platform, Linking } from "react-native";
-import { fetchReviewMode } from "../../firebaseConfig";
+import { fetchReviewMode } from "../../../lib/_firebaseConfig";
 
 
 export default function Scan() {
@@ -23,6 +23,7 @@ export default function Scan() {
   const [howItWorksVisible, setHowItWorksVisible] = useState(false);
   const [lastScanTime, setLastScanTime] = useState(null);
   const [cooldownModalVisible, setCooldownModalVisible] = useState(false);
+  const [isRedeeming, setIsRedeeming] = useState(false);
 
   const cooldownMinutes = 15;
   const [countdown, setCountdown] = useState('');
@@ -290,6 +291,7 @@ const confirmRewardRedemption = async () => {
 
     // 🔁 NEW: Update monthly redemption counters
     const rewardKey = getRewardKeyFromName(rewardDetails.rewardName);
+
     if (rewardKey) {
       const redemptionRef = doc(db, "monthlyRedemptions", "currentMonth");
       await updateDoc(redemptionRef, {
@@ -318,11 +320,11 @@ const confirmRewardRedemption = async () => {
 };
 
 const getRewardKeyFromName = (rewardName) => {
-  if (rewardName.includes("$1")) return "one";
-  if (rewardName.includes("$3")) return "three";
-  if (rewardName.includes("$5")) return "five";
-  if (rewardName.includes("$10")) return "ten";
   if (rewardName.includes("$20")) return "twenty";
+  if (rewardName.includes("$10")) return "ten";
+  if (rewardName.includes("$5")) return "five";
+  if (rewardName.includes("$3")) return "three";
+  if (rewardName.includes("$1")) return "one";
   return null;
 };
 
@@ -659,6 +661,7 @@ const fetchUpdatedOrder = async (orderId) => {
               style={styles.camera}
               onBarcodeScanned={scanned ? undefined : handleQRCodeScanned}
               barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+              zoom={1}
             />
           ) : null}
 
@@ -678,7 +681,7 @@ const fetchUpdatedOrder = async (orderId) => {
             <Text style={styles.topTitle}>Trash Scanning Stage</Text>
           </View>
   
-          <CameraView ref={cameraRef} style={styles.camera} />
+          <CameraView ref={cameraRef} style={styles.camera} zoom={0} />
   
           {/* ✅ Capture Trash Image Button in the Center */}
           <TouchableOpacity

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Button, FlatList, Modal, TouchableOpacity, Alert } from "react-native";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
-import { auth, db } from "../../firebaseConfig";
+import { auth, db } from "../../../lib/_firebaseConfig";
 import { collection, doc, getDoc, getDocs, updateDoc, addDoc, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import QRCode from "react-native-qrcode-svg";
 import { useFocusEffect } from "@react-navigation/native";
