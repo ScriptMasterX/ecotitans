@@ -661,7 +661,7 @@ const fetchUpdatedOrder = async (orderId) => {
               style={styles.camera}
               onBarcodeScanned={scanned ? undefined : handleQRCodeScanned}
               barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-              zoom={1}
+              zoom={0}
             />
           ) : null}
 

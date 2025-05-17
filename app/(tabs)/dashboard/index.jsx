@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   welcomeAvatar: {
     width: 140,
     height: 140,
-    borderRadius: "50%",
+    borderRadius: 70,
     marginRight: 10,
     borderColor: "#84CC16",
     borderWidth: 4
