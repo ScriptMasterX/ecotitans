@@ -389,7 +389,7 @@ const fetchUpdatedOrder = async (orderId) => {
           setStage("start");
           setScanned(false);
       } else {
-          Alert.alert("Invalid Image", "This does not appear to be trash. Try again.");
+          Alert.alert("Invalid Image", "Make sure to get both the trash and trash can in the picture. Try again.");
       }
 
     } if (!cameraRef.current) {
