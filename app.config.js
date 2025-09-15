@@ -21,7 +21,7 @@ export default {
     ios: {
       supportsTablet: true,
       buildNumber: "17",
-      bundleIdentifier: "com.techtitans.realapp",
+      bundleIdentifier: "com.techtitans.ecotitans",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription: "This app uses your camera to scan QR codes and verify trash disposal to award you points.",
